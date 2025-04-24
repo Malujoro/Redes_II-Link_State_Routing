@@ -14,9 +14,7 @@ layouts = {
     "Spring Layout": nx.spring_layout,
     "Circular Layout": nx.circular_layout,
     "Shell Layout": nx.shell_layout,
-    "Kamada-Kawai Layout": nx.kamada_kawai_layout,
     "Spectral Layout": nx.spectral_layout,
-    "Random Layout": nx.random_layout
 }
 
 # Criar figura com 6 subplots (2 linhas, 3 colunas)
