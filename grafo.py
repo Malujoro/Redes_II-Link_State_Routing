@@ -94,9 +94,9 @@ def salvar_grafo_csv(grafo: nx.Graph, caminho_csv: str = "grafo.csv"):
 
 
 if (__name__ == '__main__'):
-    caminho = "grafo.png"
+    caminho = "grafo"
     quant_roteadores = 5
 
     grafo = gerar_grafo(quant_roteadores)
-    salvar_grafo_imagem(grafo, caminho_imagem=caminho)
-    salvar_grafo_csv(grafo)
+    salvar_grafo_imagem(grafo, caminho_imagem=f"{caminho}.png")
+    salvar_grafo_csv(grafo, caminho_csv=f"{caminho}.csv")
