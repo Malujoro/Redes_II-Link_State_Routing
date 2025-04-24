@@ -11,5 +11,7 @@ pip install -r requirements.txt
 
 Geração do grafo, executando o grafo.py
 
+Geração do compose, executando o compose.py
+
 ~Método para gerar o requirements.txt
 pip freeze > requirements.txt
