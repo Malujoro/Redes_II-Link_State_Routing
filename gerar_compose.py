@@ -43,10 +43,13 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         linhas.append(f"    cap_add:")
         linhas.append(f"      - NET_ADMIN")
 
-        # Adiciona hosts para cada roteador
+        # Adiciona apenas uma rede para os dois hosts
+        host_net = f"{r}_hosts_net"
+        host_subnet = f"192.168.{subnet_count}.0/24"
+        networks[host_net] = host_subnet
+
         for i in range(1, 3):
             host_name = f"{r}_h{i}"
-            host_net = f"{r}_host{i}_net"
             host_ip = f"192.168.{subnet_count}.{i+1}"
             linhas.extend([
                 f"  {host_name}:",
@@ -56,7 +59,6 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
                 f"      {host_net}:",
                 f"        ipv4_address: {host_ip}"
             ])
-            networks[host_net] = f"192.168.{subnet_count}.0/24"
         subnet_count += 1
 
     linhas.append("networks:")

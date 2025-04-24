@@ -14,14 +14,14 @@ services:
     build: ./host
     container_name: r1_h1
     networks:
-      r1_host1_net:
+      r1_hosts_net:
         ipv4_address: 192.168.6.2
   r1_h2:
     build: ./host
     container_name: r1_h2
     networks:
-      r1_host2_net:
-        ipv4_address: 192.168.7.3
+      r1_hosts_net:
+        ipv4_address: 192.168.6.3
   r2:
     build: ./roteador
     container_name: r2
@@ -36,14 +36,14 @@ services:
     build: ./host
     container_name: r2_h1
     networks:
-      r2_host1_net:
-        ipv4_address: 192.168.8.2
+      r2_hosts_net:
+        ipv4_address: 192.168.7.2
   r2_h2:
     build: ./host
     container_name: r2_h2
     networks:
-      r2_host2_net:
-        ipv4_address: 192.168.9.3
+      r2_hosts_net:
+        ipv4_address: 192.168.7.3
   r3:
     build: ./roteador
     container_name: r3
@@ -60,14 +60,14 @@ services:
     build: ./host
     container_name: r3_h1
     networks:
-      r3_host1_net:
-        ipv4_address: 192.168.10.2
+      r3_hosts_net:
+        ipv4_address: 192.168.8.2
   r3_h2:
     build: ./host
     container_name: r3_h2
     networks:
-      r3_host2_net:
-        ipv4_address: 192.168.11.3
+      r3_hosts_net:
+        ipv4_address: 192.168.8.3
   r4:
     build: ./roteador
     container_name: r4
@@ -80,14 +80,14 @@ services:
     build: ./host
     container_name: r4_h1
     networks:
-      r4_host1_net:
-        ipv4_address: 192.168.12.2
+      r4_hosts_net:
+        ipv4_address: 192.168.9.2
   r4_h2:
     build: ./host
     container_name: r4_h2
     networks:
-      r4_host2_net:
-        ipv4_address: 192.168.13.3
+      r4_hosts_net:
+        ipv4_address: 192.168.9.3
   r5:
     build: ./roteador
     container_name: r5
@@ -102,14 +102,14 @@ services:
     build: ./host
     container_name: r5_h1
     networks:
-      r5_host1_net:
-        ipv4_address: 192.168.14.2
+      r5_hosts_net:
+        ipv4_address: 192.168.10.2
   r5_h2:
     build: ./host
     container_name: r5_h2
     networks:
-      r5_host2_net:
-        ipv4_address: 192.168.15.3
+      r5_hosts_net:
+        ipv4_address: 192.168.10.3
 networks:
   r1_r2_net:
     driver: bridge
@@ -136,53 +136,28 @@ networks:
     ipam:
       config:
         - subnet: 10.10.5.0/24
-  r1_host1_net:
+  r1_hosts_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.6.0/24
-  r1_host2_net:
+  r2_hosts_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.7.0/24
-  r2_host1_net:
+  r3_hosts_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.8.0/24
-  r2_host2_net:
+  r4_hosts_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.9.0/24
-  r3_host1_net:
+  r5_hosts_net:
     driver: bridge
     ipam:
       config:
         - subnet: 192.168.10.0/24
-  r3_host2_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.11.0/24
-  r4_host1_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.12.0/24
-  r4_host2_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.13.0/24
-  r5_host1_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.14.0/24
-  r5_host2_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.15.0/24
