@@ -3,6 +3,8 @@ services:
   r1:
     build: ./roteador
     container_name: r1
+    environment:
+      CONTAINER_NAME: r1
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
     networks:
@@ -27,6 +29,8 @@ services:
   r2:
     build: ./roteador
     container_name: r2
+    environment:
+      CONTAINER_NAME: r2
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
     networks:
@@ -51,6 +55,8 @@ services:
   r3:
     build: ./roteador
     container_name: r3
+    environment:
+      CONTAINER_NAME: r3
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
     networks:
@@ -77,6 +83,8 @@ services:
   r4:
     build: ./roteador
     container_name: r4
+    environment:
+      CONTAINER_NAME: r4
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
     networks:
@@ -99,6 +107,8 @@ services:
   r5:
     build: ./roteador
     container_name: r5
+    environment:
+      CONTAINER_NAME: r5
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
     networks:

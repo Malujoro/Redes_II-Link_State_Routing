@@ -1,4 +1,5 @@
-import yaml, csv
+import yaml
+import csv
 from collections import defaultdict
 
 def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
@@ -43,6 +44,9 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         service = {
             'build': './roteador',
             'container_name': r,
+            'environment': {
+                'CONTAINER_NAME': r,
+            },
             'volumes': [
                 './roteador/roteador.py:/app/roteador.py'
             ],
@@ -51,7 +55,7 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         for net, ip in ip_map[r].items():
             service['networks'][net] = {'ipv4_address': ip}
         service['cap_add'] = ['NET_ADMIN']
-        
+
         docker_compose['services'][r] = service
 
         # Hosts
@@ -61,13 +65,13 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
 
         for i in range(1, 3):
             host_name = f"{r}_h{i}"
-            host_ip = f"192.168.{subnet_count}.{i+1}"
+            host_ip = f"192.168.{subnet_count}.{i + 1}"
             docker_compose['services'][host_name] = {
                 'build': './host',
                 'container_name': host_name,
                 'networks': {
                     host_net: {'ipv4_address': host_ip}
-                }
+                },
             }
         subnet_count += 1
 
@@ -87,5 +91,6 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
 
     print(f"Docker Compose salvo em: {caminho_saida}")
 
-if(__name__ == '__main__'):
+
+if (__name__ == '__main__'):
     gerar_docker_compose("grafo1.csv")

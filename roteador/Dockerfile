@@ -19,4 +19,4 @@ COPY roteador.py /app/roteador.py
 WORKDIR /app
 
 # Entrar no container com bash
-CMD ["python3", "/app/roteador.py"]
+CMD ["python3", "-u", "/app/roteador.py"]
