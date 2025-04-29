@@ -3,13 +3,15 @@ services:
   r1:
     build: ./roteador
     container_name: r1
+    volumes:
+    - ./roteador/roteador.py:/app/roteador.py
     networks:
       r1_r2_net:
         ipv4_address: 10.10.1.2
       r1_r5_net:
         ipv4_address: 10.10.2.2
     cap_add:
-      - NET_ADMIN
+    - NET_ADMIN
   r1_h1:
     build: ./host
     container_name: r1_h1
@@ -25,13 +27,15 @@ services:
   r2:
     build: ./roteador
     container_name: r2
+    volumes:
+    - ./roteador/roteador.py:/app/roteador.py
     networks:
       r1_r2_net:
         ipv4_address: 10.10.1.3
       r2_r3_net:
         ipv4_address: 10.10.3.2
     cap_add:
-      - NET_ADMIN
+    - NET_ADMIN
   r2_h1:
     build: ./host
     container_name: r2_h1
@@ -47,6 +51,8 @@ services:
   r3:
     build: ./roteador
     container_name: r3
+    volumes:
+    - ./roteador/roteador.py:/app/roteador.py
     networks:
       r2_r3_net:
         ipv4_address: 10.10.3.3
@@ -55,7 +61,7 @@ services:
       r3_r5_net:
         ipv4_address: 10.10.5.2
     cap_add:
-      - NET_ADMIN
+    - NET_ADMIN
   r3_h1:
     build: ./host
     container_name: r3_h1
@@ -71,11 +77,13 @@ services:
   r4:
     build: ./roteador
     container_name: r4
+    volumes:
+    - ./roteador/roteador.py:/app/roteador.py
     networks:
       r3_r4_net:
         ipv4_address: 10.10.4.3
     cap_add:
-      - NET_ADMIN
+    - NET_ADMIN
   r4_h1:
     build: ./host
     container_name: r4_h1
@@ -91,13 +99,15 @@ services:
   r5:
     build: ./roteador
     container_name: r5
+    volumes:
+    - ./roteador/roteador.py:/app/roteador.py
     networks:
       r1_r5_net:
         ipv4_address: 10.10.2.3
       r3_r5_net:
         ipv4_address: 10.10.5.3
     cap_add:
-      - NET_ADMIN
+    - NET_ADMIN
   r5_h1:
     build: ./host
     container_name: r5_h1
@@ -115,49 +125,49 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.1.0/24
+      - subnet: 10.10.1.0/24
   r1_r5_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.2.0/24
+      - subnet: 10.10.2.0/24
   r2_r3_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.3.0/24
+      - subnet: 10.10.3.0/24
   r3_r4_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.4.0/24
+      - subnet: 10.10.4.0/24
   r3_r5_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.5.0/24
+      - subnet: 10.10.5.0/24
   r1_hosts_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.6.0/24
+      - subnet: 192.168.6.0/24
   r2_hosts_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.7.0/24
+      - subnet: 192.168.7.0/24
   r3_hosts_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.8.0/24
+      - subnet: 192.168.8.0/24
   r4_hosts_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.9.0/24
+      - subnet: 192.168.9.0/24
   r5_hosts_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.10.0/24
+      - subnet: 192.168.10.0/24
