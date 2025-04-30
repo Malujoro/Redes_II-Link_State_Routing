@@ -11,8 +11,8 @@ import os
 #   "sequence_number": 15,          // Número da versão do LSA
 #   "timestamp": 1714419538.77,     // Quando o LSA foi gerado
 #   "links": [                      // Lista de enlaces conhecidos pelo roteador
-#     {"vizinho_id": "R2", "custo": 10},
-#     {"vizinho_id": "R3", "custo": 20}
+#     {"neighbor_id": "R2", "custo": 10},
+#     {"neighbor_id": "R3", "custo": 20}
 #   ]
 # }
 
@@ -24,25 +24,15 @@ import os
 # }
 
 
-# Função para construção do pacote LSA
-def criar_pacote_lsa(router_id: str, neighbors: dict[str, int], sequence_number: int):
-    return {
-        "type": "LSA",
-        "router_id": router_id,
-        "timestamp": time.time(),
-        "sequence_number": sequence_number,
-        "links": [{"vizinho_id": vizinho_id, "custo": custo} for (vizinho_id, custo) in neighbors.items()]
-    }
-
-
 class HelloSender:
 
     __slots__ = ["_router_id", "_interfaces",
-                 "_interval", "_PORTA"]
+                 "_neighbors", "_interval", "_PORTA"]
 
-    def __init__(self, router_id: str, interfaces: list[dict[str: str]], interval: int = 10, PORTA: int = 5000):
+    def __init__(self, router_id: str, interfaces: list[dict[str: str]], neighbors: dict[str: str], interval: int = 10, PORTA: int = 5000):
         self._router_id = router_id
         self._interfaces = interfaces
+        self._neighbors = neighbors
         self._interval = interval
         self._PORTA = PORTA
 
@@ -53,6 +43,7 @@ class HelloSender:
             "router_id": self._router_id,
             "timestamp": time.time(),
             "ip_address": ip_address,
+            "known_neighbors": list(self._neighbors.keys()),
         }
 
     def enviar_broadcast(self, ip_address: str, broadcast_ip: str):
@@ -60,15 +51,15 @@ class HelloSender:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
         while True:
-            packet = self.criar_pacote(ip_address)
-            message = json.dumps(packet).encode('utf-8')
+            pacote = self.criar_pacote(ip_address)
+            message = json.dumps(pacote).encode("utf-8")
 
             try:
                 sock.sendto(message, (broadcast_ip, self._PORTA))
                 print(
-                    f"[{self._router_id}:{ip_address}] Pacote HELLO enviado para {broadcast_ip}:{self._PORTA}")
+                    f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
             except Exception as e:
-                print(f"[{self._router_id}:{ip_address}] Erro ao enviar: {e}")
+                print(f"[{self._router_id}] Erro ao enviar: {e}")
 
             time.sleep(self._interval)
 
@@ -82,45 +73,111 @@ class HelloSender:
                     ip_address, broadcast_ip), daemon=True)
                 thread_emissor.start()
 
+class LSASender:
+
+    __slots__ = ["_router_id", "_neighbors_ip", "_neighbors_cost",
+                 "_interval", "_PORTA", "_sequence_number", "_iniciado"]
+
+    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], interval: int = 30, PORTA: int = 5000):
+        self._router_id = router_id
+        self._neighbors_ip = neighbors_ip
+        self._neighbors_cost = neighbors_cost
+        self._interval = interval
+        self._PORTA = PORTA
+        self._sequence_number = 0
+        self._iniciado = False
+
+    # Função para construção do pacote LSA
+    def criar_pacote(self):
+        self._sequence_number += 1
+        return {
+            "type": "LSA",
+            "router_id": self._router_id,
+            "timestamp": time.time(),
+            "sequence_number": self._sequence_number,
+            "links": [{"neighbor_id": neighbor_id, "custo": custo} for (neighbor_id, custo) in self._neighbors_cost.items()]
+        }
+
+    def enviar_para_vizinhos(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        while True:
+            pacote = self.criar_pacote()
+            message = json.dumps(pacote).encode("utf-8")
+
+            for ip in self._neighbors_ip.values():
+                try:
+                    sock.sendto(message, (ip, self._PORTA))
+                    print(
+                        f"[{self._router_id}] Pacote LSA enviado para {ip}")
+                except Exception as e:
+                    print(f"[{self._router_id}] Erro ao enviar: {e}")
+
+            time.sleep(self._interval)
+
+    def iniciar(self):
+        if (not self._iniciado):
+            self._iniciado = True
+            thread_emissor = threading.Thread(
+                target=self.enviar_para_vizinhos, daemon=True)
+            thread_emissor.start()
+
+
 class Roteador:
 
-    __slots__ = ["_router_id", "_interfaces",
-                 "_PORTA", "_BUFFER_SIZE", '_vizinhos']
+    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa",
+                 "_BUFFER_SIZE", "_neighbors", "_recognized_neighbors"]
 
     def __init__(self, router_id: str, interfaces: list[dict[str: str]], PORTA: int = 5000, BUFFER_SIZE: int = 4096):
         self._router_id = router_id
         self._interfaces = interfaces
         self._PORTA = PORTA
         self._BUFFER_SIZE = BUFFER_SIZE
-        self._vizinhos = {}
+        self._neighbors = {}
+        self._recognized_neighbors = {}
+        self._lsa = LSASender(
+            self._router_id, self._recognized_neighbors, self._neighbors)
 
     def receber_pacotes(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Escuta em todas as interfaces
-        sock.bind(('', self._PORTA))
+        sock.bind(("", self._PORTA))
 
-        print(f"Receptor HELLO escutando na porta {self._PORTA}...")
+        print(f"Receptor escutando na porta {self._PORTA}")
 
         while True:
             try:
-                data, addr = sock.recvfrom(self._BUFFER_SIZE)
-                mensagem = data.decode('utf-8')
+                data, address = sock.recvfrom(self._BUFFER_SIZE)
+                mensagem = data.decode("utf-8")
                 pacote = json.loads(mensagem)
                 received_id = pacote.get("router_id")
-                if (pacote.get("type") == "HELLO" and received_id != self._router_id):
-                    print(f"Pacote HELLO recebido de {received_id}:{addr[0]}")
+                tipo_pacote = pacote.get("type")
+                if (received_id != self._router_id):
+                    received_ip = address[0]
+                    print(
+                        f"Pacote {tipo_pacote} recebido de [{received_id}] {received_ip}")
 
-                    # print(json.dumps(pacote, indent=4))
+                    if (tipo_pacote == "HELLO"):
+                        self._neighbors[received_id] = get_custo(
+                            self._router_id, received_id)
+                        neighbors = pacote.get("known_neighbors")
+                        print(
+                            f"neighbors de [{self._router_id}]: {self._neighbors}")
+                        print(
+                            f"neighbors de [{received_id}]: {neighbors}")
 
-                    self._vizinhos[received_id] = get_custo(
-                        router_id, received_id)
-                    print(f"Vizinhos de [{self._router_id}]: {self._vizinhos}")
+                        if ((router_id in neighbors) and (received_id not in self._recognized_neighbors.keys())):
+                            self._recognized_neighbors[received_id] = received_ip
+                            print(
+                                f"recognized neighbors de [{router_id}]: {self._recognized_neighbors}")
+                            self._lsa.iniciar()
+
+                    elif (tipo_pacote == "LSA"):
+                        print(json.dumps(pacote, indent=4))
             except Exception as e:
                 print(f"Erro ao receber pacote: {e}")
 
     def iniciar(self):
-        hello = HelloSender(self._router_id, self._interfaces)
-        # self._lsa = LSA(router_id, interfaces)
+        hello = HelloSender(self._router_id, self._interfaces, self._neighbors)
 
         thread_receptor = threading.Thread(
             target=self.receber_pacotes, daemon=True)
@@ -146,15 +203,15 @@ def listar_enderecos():
     return interfaces_list
 
 
-def get_custo(router_id: str, vizinho_id: str):
-    custo = os.getenv(f'CUSTO_{router_id}_{vizinho_id}_net')
+def get_custo(router_id: str, neighbor_id: str):
+    custo = os.getenv(f"CUSTO_{router_id}_{neighbor_id}_net")
     if (custo == None):
-        custo = os.getenv(f'CUSTO_{vizinho_id}_{router_id}_net')
+        custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
     return int(custo)
 
 
 if (__name__ == "__main__"):
-    router_id = os.getenv('CONTAINER_NAME')
+    router_id = os.getenv("CONTAINER_NAME")
     if (not router_id):
         raise ValueError(
             "CONTAINER_NAME não definido nas variáveis de ambiente")

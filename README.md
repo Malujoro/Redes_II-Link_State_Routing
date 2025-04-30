@@ -13,5 +13,7 @@ Geração do grafo, executando o grafo.py
 
 Geração do compose, executando o compose.py
 
+Executar o init.sh (responsável também por reiniciar o sistema, caso necesśario)
+
 ~Método para gerar o requirements.txt
 pip freeze > requirements.txt
