@@ -87,6 +87,18 @@ class LSASender:
         self._sequence_number = 0
         self._iniciado = False
 
+    @property
+    def router_id(self):
+        return self._router_id
+
+    @property
+    def neighbors_ip(self):
+        return self._neighbors_ip
+
+    @property
+    def neighbors_cost(self):
+        return self._neighbors_cost
+
     # Função para construção do pacote LSA
     def criar_pacote(self):
         self._sequence_number += 1
@@ -124,18 +136,20 @@ class LSASender:
 
 class Roteador:
 
-    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa",
-                 "_BUFFER_SIZE", "_neighbors", "_recognized_neighbors"]
+    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa", "_BUFFER_SIZE",
+                 "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"]
 
     def __init__(self, router_id: str, interfaces: list[dict[str: str]], PORTA: int = 5000, BUFFER_SIZE: int = 4096):
         self._router_id = router_id
         self._interfaces = interfaces
         self._PORTA = PORTA
         self._BUFFER_SIZE = BUFFER_SIZE
-        self._neighbors = {}
-        self._recognized_neighbors = {}
+        self._neighbors_detected = {}
+        self._neighbors_recognized = {}
         self._lsa = LSASender(
-            self._router_id, self._recognized_neighbors, self._neighbors)
+            self._router_id, self._neighbors_recognized, self._neighbors_detected)
+        self._gerenciador_vizinhos = GerenciadorVizinhos(
+            self._router_id, self._lsa)
 
     def receber_pacotes(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -149,35 +163,24 @@ class Roteador:
                 data, address = sock.recvfrom(self._BUFFER_SIZE)
                 mensagem = data.decode("utf-8")
                 pacote = json.loads(mensagem)
-                received_id = pacote.get("router_id")
                 tipo_pacote = pacote.get("type")
+                received_id = pacote.get("router_id")
                 if (received_id != self._router_id):
                     received_ip = address[0]
                     print(
                         f"Pacote {tipo_pacote} recebido de [{received_id}] {received_ip}")
 
                     if (tipo_pacote == "HELLO"):
-                        self._neighbors[received_id] = get_custo(
-                            self._router_id, received_id)
-                        neighbors = pacote.get("known_neighbors")
-                        print(
-                            f"neighbors de [{self._router_id}]: {self._neighbors}")
-                        print(
-                            f"neighbors de [{received_id}]: {neighbors}")
-
-                        if ((router_id in neighbors) and (received_id not in self._recognized_neighbors.keys())):
-                            self._recognized_neighbors[received_id] = received_ip
-                            print(
-                                f"recognized neighbors de [{router_id}]: {self._recognized_neighbors}")
-                            self._lsa.iniciar()
-
+                        self._gerenciador_vizinhos.processar_hello(
+                            pacote, received_ip)
                     elif (tipo_pacote == "LSA"):
                         print(json.dumps(pacote, indent=4))
             except Exception as e:
                 print(f"Erro ao receber pacote: {e}")
 
     def iniciar(self):
-        hello = HelloSender(self._router_id, self._interfaces, self._neighbors)
+        hello = HelloSender(self._router_id, self._interfaces,
+                            self._neighbors_detected)
 
         thread_receptor = threading.Thread(
             target=self.receber_pacotes, daemon=True)
@@ -187,6 +190,39 @@ class Roteador:
 
         while True:
             time.sleep(1)
+
+
+class GerenciadorVizinhos:
+
+    __slots__ = ["_router_id", "_lsa", "_neighbors_detected", "_neighbors_recognized"]
+
+    def __init__(self, router_id: str, lsa_sender: LSASender):
+        self._router_id = router_id
+        self._lsa = lsa_sender
+        self._neighbors_detected = lsa_sender.neighbors_cost
+        self._neighbors_recognized = lsa_sender.neighbors_ip
+
+    def processar_hello(self, pacote: dict, received_ip: str):
+        received_id = pacote.get("router_id")
+        self._neighbors_detected[received_id] = self.get_custo(
+            self._router_id, received_id)
+        neighbors = pacote.get("known_neighbors")
+        print(
+            f"neighbors de [{self._router_id}]: {self._neighbors_detected}")
+        print(
+            f"neighbors de [{received_id}]: {neighbors}")
+
+        if ((router_id in neighbors) and (received_id not in self._neighbors_recognized.keys())):
+            self._neighbors_recognized[received_id] = received_ip
+            print(
+                f"recognized neighbors de [{router_id}]: {self._neighbors_recognized}")
+            self._lsa.iniciar()
+
+    def get_custo(self, router_id: str, neighbor_id: str):
+        custo = os.getenv(f"CUSTO_{router_id}_{neighbor_id}_net")
+        if (custo == None):
+            custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
+        return int(custo)
 
 
 def listar_enderecos():
@@ -201,13 +237,6 @@ def listar_enderecos():
                          "broadcast": address.broadcast}
                     )
     return interfaces_list
-
-
-def get_custo(router_id: str, neighbor_id: str):
-    custo = os.getenv(f"CUSTO_{router_id}_{neighbor_id}_net")
-    if (custo == None):
-        custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
-    return int(custo)
 
 
 if (__name__ == "__main__"):
