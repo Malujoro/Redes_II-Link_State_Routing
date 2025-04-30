@@ -9,12 +9,12 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
     with open(caminho_csv, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            origem, destino = row['no_origem'], row['no_destino']
-            conexoes.append((origem, destino))
+            origem, destino, peso = row['no_origem'], row['no_destino'], int(row['peso'])
+            conexoes.append((origem, destino, peso))
             roteadores.update([origem, destino])
 
     conexoes_por_roteador = defaultdict(list)
-    for origem, destino in conexoes:
+    for origem, destino, peso in conexoes:
         conexoes_por_roteador[origem].append(destino)
         conexoes_por_roteador[destino].append(origem)
 
@@ -30,13 +30,15 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         'services': {}  # Aqui vamos colocar os serviços primeiro
     }
 
+    subnet_cost = {}
     # Definição das conexões e IPs
-    for origem, destino in conexoes:
+    for origem, destino, peso in conexoes:
         net_name = f"{origem}_{destino}_net"
         subnet = subnet_base.format(subnet_count)
         ip_map[origem][net_name] = ip_base.format(subnet_count, 2)
         ip_map[destino][net_name] = ip_base.format(subnet_count, 3)
         networks[net_name] = subnet
+        subnet_cost[net_name] = peso
         subnet_count += 1
 
     # Definição dos serviços para os roteadores
@@ -54,6 +56,7 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         }
         for net, ip in ip_map[r].items():
             service['networks'][net] = {'ipv4_address': ip}
+            service['environment'][f"CUSTO_{net}"] = str(subnet_cost[net])
         service['cap_add'] = ['NET_ADMIN']
 
         docker_compose['services'][r] = service
