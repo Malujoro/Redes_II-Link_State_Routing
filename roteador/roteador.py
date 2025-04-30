@@ -5,7 +5,8 @@ import threading
 import json
 import os
 
-PORT = 5000
+PORTA = 5000
+BUFFER_SIZE = 4096
 
 # {
 #   "type": "HELLO",          // Tipo do pacote (poderia ser HELLO, LSA, etc.)
@@ -31,7 +32,7 @@ PORT = 5000
 #   - 17: Endereço MAC
 
 # Função para construção do pacote Hello
-def build_hello_packet(router_id: str, ip_address: str):
+def criar_pacote_hello(router_id: str, ip_address: str):
     return {
         "type": "HELLO",
         "router_id": router_id,
@@ -40,7 +41,7 @@ def build_hello_packet(router_id: str, ip_address: str):
     }
 
 # Função para construção do pacote LSA
-def build_lsa_packet(router_id: str, neighbors: list[tuple[str, int]], sequence_number: int):
+def criar_pacote_lsa(router_id: str, neighbors: list[tuple[str, int]], sequence_number: int):
     return {
         "type": "LSA",
         "router_id": router_id,
@@ -50,7 +51,7 @@ def build_lsa_packet(router_id: str, neighbors: list[tuple[str, int]], sequence_
     }
 
 
-def list_interfaces():
+def listar_enderecos():
     interfaces = psutil.net_if_addrs()
     interfaces_list = []
     for interface, addresses in interfaces.items():
@@ -64,34 +65,59 @@ def list_interfaces():
     return interfaces_list
 
 
-def send_hello_broadcast(router_id: str, ip_address: str, broadcast_ip: str, interval: int = 10):
+def enviar_hello_broadcast(router_id: str, ip_address: str, broadcast_ip: str, interval: int = 10):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     while True:
-        packet = build_hello_packet(router_id, ip_address)
+        packet = criar_pacote_hello(router_id, ip_address)
         message = json.dumps(packet).encode('utf-8')
 
         try:
-            sock.sendto(message, (broadcast_ip, PORT))
+            sock.sendto(message, (broadcast_ip, PORTA))
             print(
-                f"[{router_id}:{ip_address}] Pacote HELLO enviado para {broadcast_ip}:{PORT}")
+                f"[{router_id}:{ip_address}] Pacote HELLO enviado para {broadcast_ip}:{PORTA}")
         except Exception as e:
             print(f"[{router_id}:{ip_address}] Erro ao enviar: {e}")
 
         time.sleep(interval)
 
+def receber_hello(router_id: str):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Escuta em todas as interfaces
+    sock.bind(('', PORTA))
+
+    print(f"Receptor HELLO escutando na porta {PORTA}...")
+
+    while True:
+        try:
+            data, addr = sock.recvfrom(BUFFER_SIZE)
+            mensagem = data.decode('utf-8')
+            pacote = json.loads(mensagem)
+            received_id = pacote.get("router_id")
+            if (pacote.get("type") == "HELLO" and received_id != router_id):
+                print(f"\nPacote HELLO recebido de {received_id}:{addr[0]}")
+                print(json.dumps(pacote, indent=4))
+        except Exception as e:
+            print(f"Erro ao receber pacote: {e}")
+
 
 if (__name__ == "__main__"):
     router_id = os.getenv('CONTAINER_NAME')
-    interfaces = list_interfaces()
+    interfaces = listar_enderecos()
+
+    # Iniciar receptor em thread
+    thread_receptor = threading.Thread(
+        target=receber_hello, args=(router_id,), daemon=True)
+    thread_receptor.start()
 
     for dicio in interfaces:
         ip_address = dicio["address"]
         broadcast_ip = dicio["broadcast"]
 
         if (broadcast_ip != None):
-            thread = threading.Thread(target=send_hello_broadcast, args=(router_id, ip_address, broadcast_ip), daemon=True)
+            thread = threading.Thread(target=enviar_hello_broadcast, args=(
+                router_id, ip_address, broadcast_ip), daemon=True)
             thread.start()
 
     while True:
