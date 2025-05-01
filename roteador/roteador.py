@@ -5,6 +5,83 @@ import threading
 import json
 import os
 
+class LSDB:
+
+    __slots__ = ["_tabela", "_router_id", "_roteamento"]
+
+    def __init__(self, router_id: str):
+        self._router_id = router_id
+        self._tabela = {}
+        self._roteamento = {}
+
+    def atualizar(self, pacote):
+        router_id = pacote["router_id"]
+        sequence_number = pacote["sequence_number"]
+
+        entrada = self._tabela.get(router_id)
+
+        if (entrada and sequence_number < entrada["sequence_number"]):
+            return
+
+        self._tabela[pacote["router_id"]] = {
+            "sequence_number": sequence_number,
+            "timestamp": pacote["timestamp"],
+            "links": pacote["links"],
+        }
+
+        for vizinho in pacote["links"].keys():
+            if (vizinho not in self._tabela):
+                print(f"[LSDB] Descoberto novo roteador: {vizinho}")
+                self._tabela[vizinho] = {
+                    "sequence_number": -1,
+                    "timestamp": 0,
+                    "links": {}
+                }
+
+        self.dijkstra()
+        # print(json.dumps(self._tabela, indent=4))
+
+    def dijkstra(self):
+        self._roteamento[self._router_id] = None
+        distancias = {}
+        caminhos = {}
+        marcados = {}
+
+        for roteador in self._tabela.keys():
+            distancias[roteador] = float('inf')
+            caminhos[roteador] = None
+
+            # for vizinho in self._tabela[roteador]["links"].keys():
+            #     if(vizinho not in distancias):
+            #         distancias[vizinho] = float('inf')
+            #         caminhos[vizinho] = None
+
+        distancias[self._router_id] = 0
+
+        while len(marcados) < len(self._tabela):
+            roteador = None
+            menor = float('inf')
+            for no, custo in distancias.items():
+                if (no not in marcados and custo < menor):
+                    roteador = no
+                    menor = custo
+
+            if (roteador is None):
+                break
+
+            marcados[roteador] = True
+            vizinhos = self._tabela[roteador]["links"]
+
+            for vizinho, custo in vizinhos.items():
+                if (vizinho not in marcados):
+                    custo_total = custo + distancias[roteador]
+                    if (custo_total < distancias[vizinho]):
+                        distancias[vizinho] = custo_total
+                        caminhos[vizinho] = roteador
+
+        print(caminhos)
+
+
 class HelloSender:
 
     __slots__ = ["_router_id", "_interfaces",
@@ -57,9 +134,9 @@ class HelloSender:
 class LSASender:
 
     __slots__ = ["_router_id", "_neighbors_ip", "_neighbors_cost",
-                 "_interval", "_PORTA", "_sequence_number", "_iniciado"]
+                 "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb"]
 
-    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], interval: int = 30, PORTA: int = 5000):
+    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
         self._router_id = router_id
         self._neighbors_ip = neighbors_ip
         self._neighbors_cost = neighbors_cost
@@ -67,6 +144,7 @@ class LSASender:
         self._PORTA = PORTA
         self._sequence_number = 0
         self._iniciado = False
+        self._lsdb = lsdb
 
     @property
     def router_id(self):
@@ -88,13 +166,14 @@ class LSASender:
             "router_id": self._router_id,
             "timestamp": time.time(),
             "sequence_number": self._sequence_number,
-            "links": [{"neighbor_id": neighbor_id, "custo": custo} for (neighbor_id, custo) in self._neighbors_cost.items()]
+            "links": {neighbor_id: custo for (neighbor_id, custo) in self._neighbors_cost.items()}
         }
 
     def enviar_para_vizinhos(self):
         sock = create_socket()
         while True:
             pacote = self.criar_pacote()
+            self._lsdb.atualizar(pacote)
             message = json.dumps(pacote).encode("utf-8")
 
             for ip in self._neighbors_ip.values():
@@ -132,7 +211,7 @@ class LSASender:
 
 class Roteador:
 
-    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa", "_BUFFER_SIZE",
+    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa", "_lsdb", "_BUFFER_SIZE",
                  "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"]
 
     def __init__(self, router_id: str, PORTA: int = 5000, BUFFER_SIZE: int = 4096):
@@ -142,10 +221,11 @@ class Roteador:
         self._BUFFER_SIZE = BUFFER_SIZE
         self._neighbors_detected = {}
         self._neighbors_recognized = {}
+        self._lsdb = LSDB(router_id)
         self._lsa = LSASender(
-            self._router_id, self._neighbors_recognized, self._neighbors_detected)
+            self._router_id, self._neighbors_recognized, self._neighbors_detected, self._lsdb)
         self._gerenciador_vizinhos = GerenciadorVizinhos(
-            self._router_id, self._lsa)
+            self._router_id, self._lsa, self._lsdb)
 
     def receber_pacotes(self):
         sock = create_socket()
@@ -200,39 +280,15 @@ class Roteador:
         while True:
             time.sleep(1)
 
-class LSDB:
-
-    __slots__ = ["_tabela"]
-
-    def __init__(self):
-        self._tabela = {}
-
-    def atualizar(self, pacote):
-        router_id = pacote["router_id"]
-        sequence_number = pacote["sequence_number"]
-
-        entrada = self._tabela.get(router_id)
-
-        if (entrada and sequence_number < entrada["sequence_number"]):
-            return
-
-        self._tabela[pacote["router_id"]] = {
-            "sequence_number": sequence_number,
-            "timestamp": pacote["timestamp"],
-            "links": pacote["links"],
-        }
-        print(json.dumps(self._tabela, indent=4))
-
-
 class GerenciadorVizinhos:
 
     __slots__ = ["_router_id", "_lsa", "_lsdb",
                  "_neighbors_detected", "_neighbors_recognized"]
 
-    def __init__(self, router_id: str, lsa: LSASender):
+    def __init__(self, router_id: str, lsa: LSASender, lsdb: LSDB):
         self._router_id = router_id
         self._lsa = lsa
-        self._lsdb = LSDB()
+        self._lsdb = lsdb
         self._neighbors_detected = lsa.neighbors_cost
         self._neighbors_recognized = lsa.neighbors_ip
 
