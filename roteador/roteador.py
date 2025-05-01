@@ -4,15 +4,25 @@ import socket
 import threading
 import json
 import os
+import subprocess
 
 class LSDB:
 
-    __slots__ = ["_tabela", "_router_id", "_roteamento"]
+    __slots__ = ["_tabela", "_router_id", "_roteamento", "_neighbors_ip"]
 
-    def __init__(self, router_id: str):
+    def __init__(self, router_id: str, neighbors_ip: dict[str: str]):
         self._router_id = router_id
         self._tabela = {}
         self._roteamento = {}
+        self._neighbors_ip = neighbors_ip
+
+    def criar_entrada(self, sequence_number, timestamp, addresses, links):
+        return {
+            "sequence_number": sequence_number,
+            "timestamp": timestamp,
+            "addresses": addresses,
+            "links": links,
+        }
 
     def atualizar(self, pacote):
         router_id = pacote["router_id"]
@@ -20,47 +30,40 @@ class LSDB:
 
         entrada = self._tabela.get(router_id)
 
-        if (entrada and sequence_number < entrada["sequence_number"]):
-            return
+        if (entrada and sequence_number <= entrada["sequence_number"]):
+            return False
 
-        self._tabela[pacote["router_id"]] = {
-            "sequence_number": sequence_number,
-            "timestamp": pacote["timestamp"],
-            "links": pacote["links"],
-        }
+        self._tabela[pacote["router_id"]] = self.criar_entrada(
+            sequence_number, pacote["timestamp"], pacote["addresses"], pacote["links"])
 
         for vizinho in pacote["links"].keys():
             if (vizinho not in self._tabela):
                 print(f"[LSDB] Descoberto novo roteador: {vizinho}")
-                self._tabela[vizinho] = {
-                    "sequence_number": -1,
-                    "timestamp": 0,
-                    "links": {}
-                }
+                self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
 
-        self.dijkstra()
+        caminhos = self.dijkstra()
         # print(json.dumps(self._tabela, indent=4))
+        self.atualizar_proximo_pulo(caminhos)
+        self.atualizar_rotas()
+        # print(json.dumps(self._roteamento, indent=4))
+        return True
 
     def dijkstra(self):
-        self._roteamento[self._router_id] = None
         distancias = {}
         caminhos = {}
         marcados = {}
 
+        # Inicializando os dicionários
         for roteador in self._tabela.keys():
             distancias[roteador] = float('inf')
             caminhos[roteador] = None
-
-            # for vizinho in self._tabela[roteador]["links"].keys():
-            #     if(vizinho not in distancias):
-            #         distancias[vizinho] = float('inf')
-            #         caminhos[vizinho] = None
 
         distancias[self._router_id] = 0
 
         while len(marcados) < len(self._tabela):
             roteador = None
             menor = float('inf')
+            # Busca pelo menor roteador não marcado
             for no, custo in distancias.items():
                 if (no not in marcados and custo < menor):
                     roteador = no
@@ -72,6 +75,7 @@ class LSDB:
             marcados[roteador] = True
             vizinhos = self._tabela[roteador]["links"]
 
+            # Atualização dos menores caminhos
             for vizinho, custo in vizinhos.items():
                 if (vizinho not in marcados):
                     custo_total = custo + distancias[roteador]
@@ -79,7 +83,32 @@ class LSDB:
                         distancias[vizinho] = custo_total
                         caminhos[vizinho] = roteador
 
-        print(caminhos)
+        return caminhos
+
+    def atualizar_proximo_pulo(self, caminhos: dict):
+        for destino in caminhos.keys():
+            if (destino != self._router_id):
+                pulo = destino
+                while (pulo is not None and caminhos[pulo] != self._router_id):
+                    pulo = caminhos[pulo]
+                self._roteamento[destino] = pulo
+
+        self._roteamento = dict(sorted(self._roteamento.items()))
+
+    def atualizar_rotas(self):
+        for roteador_destino, roteador_gateway in self._roteamento.items():
+            if (roteador_destino != self._router_id):
+                for ip_destino in self._tabela[roteador_destino]["addresses"]:
+                    ip_gateway = self._neighbors_ip[roteador_gateway]
+
+                    comando = ["ip", "route", "replace",
+                               ip_destino, "via", ip_gateway]
+                    try:
+                        subprocess.run(comando, check=True)
+                        print(f"Rota adicionada: {ip_destino} -> {ip_gateway}")
+                    except subprocess.CalledProcessError as e:
+                        print(
+                            f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}]")
 
 
 class HelloSender:
@@ -134,9 +163,9 @@ class HelloSender:
 class LSASender:
 
     __slots__ = ["_router_id", "_neighbors_ip", "_neighbors_cost",
-                 "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb"]
+                 "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb", "_interfaces"]
 
-    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
+    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], interfaces: list[dict[str: str]], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
         self._router_id = router_id
         self._neighbors_ip = neighbors_ip
         self._neighbors_cost = neighbors_cost
@@ -145,6 +174,7 @@ class LSASender:
         self._sequence_number = 0
         self._iniciado = False
         self._lsdb = lsdb
+        self._interfaces = interfaces
 
     @property
     def router_id(self):
@@ -165,6 +195,7 @@ class LSASender:
             "type": "LSA",
             "router_id": self._router_id,
             "timestamp": time.time(),
+            "addresses": [item["address"] for item in self._interfaces],
             "sequence_number": self._sequence_number,
             "links": {neighbor_id: custo for (neighbor_id, custo) in self._neighbors_cost.items()}
         }
@@ -221,9 +252,9 @@ class Roteador:
         self._BUFFER_SIZE = BUFFER_SIZE
         self._neighbors_detected = {}
         self._neighbors_recognized = {}
-        self._lsdb = LSDB(router_id)
+        self._lsdb = LSDB(router_id, self._neighbors_recognized)
         self._lsa = LSASender(
-            self._router_id, self._neighbors_recognized, self._neighbors_detected, self._lsdb)
+            self._router_id, self._neighbors_recognized, self._neighbors_detected, self._interfaces, self._lsdb)
         self._gerenciador_vizinhos = GerenciadorVizinhos(
             self._router_id, self._lsa, self._lsdb)
 
@@ -298,20 +329,21 @@ class GerenciadorVizinhos:
             self._router_id, received_id)
         neighbors = pacote.get("known_neighbors")
 
-        print(
-            f"neighbors de [{self._router_id}]: {self._neighbors_detected}")
-        print(
-            f"neighbors de [{received_id}]: {neighbors}")
+        # print(
+        #     f"neighbors de [{self._router_id}]: {self._neighbors_detected}")
+        # print(
+        #     f"neighbors de [{received_id}]: {neighbors}")
 
-        if ((router_id in neighbors) and (received_id not in self._neighbors_recognized.keys())):
+        if ((self._router_id in neighbors) and (received_id not in self._neighbors_recognized)):
             self._neighbors_recognized[received_id] = received_ip
-            print(
-                f"recognized neighbors de [{router_id}]: {self._neighbors_recognized}")
+            # print(
+            #     f"recognized neighbors de [{router_id}]: {self._neighbors_recognized}")
             self._lsa.iniciar()
 
     def processar_lsa(self, pacote: dict, received_ip: str):
-        self._lsdb.atualizar(pacote)
-        self._lsa.encaminhar_para_vizinhos(pacote, received_ip)
+        pacote_valido = self._lsdb.atualizar(pacote)
+        if (pacote_valido):
+            self._lsa.encaminhar_para_vizinhos(pacote, received_ip)
         pass
 
     def get_custo(self, router_id: str, neighbor_id: str):
