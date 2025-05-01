@@ -9,7 +9,8 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
     with open(caminho_csv, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            origem, destino, peso = row['no_origem'], row['no_destino'], int(row['peso'])
+            origem, destino, peso = row['no_origem'], row['no_destino'], int(
+                row['peso'])
             conexoes.append((origem, destino, peso))
             roteadores.update([origem, destino])
 
@@ -42,6 +43,7 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
         subnet_count += 1
 
     # Definição dos serviços para os roteadores
+    subnet_count_min = subnet_count
     for r in sorted(roteadores):
         service = {
             'build': './roteador',
@@ -59,23 +61,34 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
             service['environment'][f"CUSTO_{net}"] = str(subnet_cost[net])
         service['cap_add'] = ['NET_ADMIN']
 
-        docker_compose['services'][r] = service
-
-        # Hosts
+        # Configurar a rede de hosts para o roteador com o gateway
         host_net = f"{r}_hosts_net"
         host_subnet = f"192.168.{subnet_count}.0/24"
         networks[host_net] = host_subnet
+        # IP do gateway será o .1 da sub-rede
+        gateway_ip = f"192.168.{subnet_count}.2"
 
+        # Adicionar o roteador à rede de hosts como gateway
+        service['networks'][host_net] = {'ipv4_address': gateway_ip}
+
+        docker_compose['services'][r] = service
+
+        # Hosts
         for i in range(1, 3):
             host_name = f"{r}_h{i}"
-            host_ip = f"192.168.{subnet_count}.{i + 1}"
+            host_ip = f"192.168.{subnet_count}.{i + 2}"
             docker_compose['services'][host_name] = {
                 'build': './host',
                 'container_name': host_name,
                 'networks': {
                     host_net: {'ipv4_address': host_ip}
                 },
+                # 'extra_hosts': [
+                #     # Adiciona o roteador como gateway para os hosts
+                #     f"{r}:{gateway_ip}"
+                # ]
             }
+
         subnet_count += 1
 
     # Agora, adicionamos a chave 'networks' após definir os serviços

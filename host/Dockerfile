@@ -1,4 +1,3 @@
-# Dockerfile para HOST
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
@@ -8,4 +7,4 @@ RUN apt-get update && apt-get install -y \
   nano \
   && rm -rf /var/lib/apt/lists/*
 
-CMD [ "bash" ]
+CMD ["bash", "-c", "while true; do sleep 1000; done"]

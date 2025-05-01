@@ -5,6 +5,7 @@ import threading
 import json
 import os
 import subprocess
+import ipaddress
 
 class LSDB:
 
@@ -42,10 +43,8 @@ class LSDB:
                 self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
 
         caminhos = self.dijkstra()
-        # print(json.dumps(self._tabela, indent=4))
         self.atualizar_proximo_pulo(caminhos)
         self.atualizar_rotas()
-        # print(json.dumps(self._roteamento, indent=4))
         return True
 
     def dijkstra(self):
@@ -96,20 +95,24 @@ class LSDB:
         self._roteamento = dict(sorted(self._roteamento.items()))
 
     def atualizar_rotas(self):
-        for roteador_destino, roteador_gateway in self._roteamento.items():
+        for roteador_destino, roteador_gateway in list(self._roteamento.items()):
             if (roteador_destino != self._router_id):
-                for ip_destino in self._tabela[roteador_destino]["addresses"]:
-                    ip_gateway = self._neighbors_ip[roteador_gateway]
+                if (roteador_gateway not in self._neighbors_ip):
+                    print(
+                        f"[LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
+                else:
+                    for ip_destino in self._tabela[roteador_destino]["addresses"]:
+                        ip_gateway = self._neighbors_ip[roteador_gateway]
 
-                    comando = ["ip", "route", "replace",
-                               ip_destino, "via", ip_gateway]
-                    try:
-                        subprocess.run(comando, check=True)
-                        print(f"Rota adicionada: {ip_destino} -> {ip_gateway}")
-                    except subprocess.CalledProcessError as e:
-                        print(
-                            f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}]")
-
+                        comando = ["ip", "route", "replace",
+                                   ip_destino, "via", ip_gateway]
+                        try:
+                            subprocess.run(comando, check=True)
+                            print(
+                                f"Rota adicionada: {ip_destino} -> {ip_gateway}")
+                        except subprocess.CalledProcessError as e:
+                            print(
+                                f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}]")
 
 class HelloSender:
 
@@ -151,7 +154,10 @@ class HelloSender:
             time.sleep(self._interval)
 
     def iniciar(self):
-        for interface_info in self._interfaces:
+        interfaces = [
+            item for item in self._interfaces if "broadcast" in item]
+        print(interfaces)
+        for interface_info in interfaces:
             ip_address = interface_info["address"]
             broadcast_ip = interface_info["broadcast"]
 
@@ -292,10 +298,18 @@ class Roteador:
             if (interface.startswith("eth")):
                 for address in addresses:
                     if (address.family == socket.AF_INET):
-                        interfaces_list.append(
-                            {"address": address.address,
-                             "broadcast": address.broadcast}
-                        )
+                        if (address.address.startswith("192")):
+                            ip = ipaddress.ip_address(address.address)
+                            rede = ipaddress.IPv4Network(
+                                f"{ip}/24", strict=False)
+                            
+                            interfaces_list.append(
+                                {"address": f"{rede.network_address}/24"})
+                        else:
+                            interfaces_list.append(
+                                {"address": address.address,
+                                 "broadcast": address.broadcast}
+                            )
         return interfaces_list
 
     def iniciar(self):
