@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Lista de hosts (todos os containers com _h no nome)
+# Lista de hosts
 hosts=()
 
-# Array associativo: IP → container
+# Cria um vetor associativo com a estrutura ip -> container
 declare -A ip_para_container
 
-# Preencher o mapeamento IP → container a partir do docker-compose.yml
+# Leitura do docker-compose
 while read -r line; do
   if [[ $line == *"container_name:"* ]]; then
     container=$(echo $line | awk '{print $2}')
@@ -14,14 +14,15 @@ while read -r line; do
   if [[ $line == *"ipv4_address:"* ]]; then
     ip=$(echo $line | awk '{print $2}')
     ip_para_container[$ip]=$container
-    # Se for host (ex: r1_h1), adiciona na lista de hosts
+
+    # Adiciona os hosts
     if [[ "$container" == *_h* ]]; then
       hosts+=("$container")
     fi
   fi
 done < docker-compose.yml
 
-# Lista de IPs dos hosts
+# Adiciona os hosts
 ips=()
 for ip in "${!ip_para_container[@]}"; do
   container="${ip_para_container[$ip]}"
@@ -30,11 +31,11 @@ for ip in "${!ip_para_container[@]}"; do
   fi
 done
 
-# Cabeçalho
+# Imprime cabeçalho
 echo "Teste de conectividade entre os hosts:"
 echo "======================================="
 
-# Loop de testes
+# Loop de testes de ping
 for origem in "${hosts[@]}"; do
   echo -e "\n### Pings a partir do $origem ###"
 

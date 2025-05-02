@@ -3,28 +3,12 @@ import matplotlib.pyplot as plt
 import random
 import csv
 
-
+# Função para gerar um grafo parcialmente conectado
 def gerar_grafo(quant_nos: int, prob_conexao: float = 0.3, peso_min: int = 1, peso_max: int = 10):
-    """
-    Gera um grafo ponderado parcialmente conectado e salva a imagem.
-
-    Parâmetros:
-    - quant_nos (int): número de nós no grafo.
-    - prob_conexao (float): probabilidade de existir uma aresta entre dois nós.
-    - peso_min (int): peso mínimo das arestas.
-    - peso_max (int): peso máximo das arestas.
-
-    Retorna:
-    - grafo (networkx.Graph): o grafo gerado.
-    """
     grafo = nx.Graph()
 
-    # Adiciona os nós
-    # for i in range(quant_nos):
-    #     grafo.add_node(f"r{i+1}")
-
-    nos = [f"r{i+1}" for i in range(quant_nos)]
-
+    # Gera e adiciona os nós
+    nos = [f"r{i + 1}" for i in range(quant_nos)]
     grafo.add_nodes_from(nos)
 
     # Adiciona arestas com peso aleatório
@@ -45,17 +29,8 @@ def gerar_grafo(quant_nos: int, prob_conexao: float = 0.3, peso_min: int = 1, pe
     return grafo
 
 
+# Função para salvar a imagem de um grafo
 def salvar_grafo_imagem(grafo: nx.Graph, caminho_imagem: str = 'grafo.png'):
-    """
-    Salva a imagem do grafo.
-
-    Parâmetros:
-    - grafo (networkx.Graph): o grafo a ser salvo.
-    - caminho_imagem (str): caminho do arquivo de imagem a ser salvo.
-    """
-
-    # Layout do grafo
-    # pos = nx.spring_layout(grafo, seed=42)
     pos = nx.circular_layout(grafo)
     pesos = nx.get_edge_attributes(grafo, 'weight')
 
@@ -74,15 +49,8 @@ def salvar_grafo_imagem(grafo: nx.Graph, caminho_imagem: str = 'grafo.png'):
     plt.close()
 
 
+# Função para salvar as informações do grafo (nós, arestas e pesos) do grafo em um .csv
 def salvar_grafo_csv(grafo: nx.Graph, caminho_csv: str = "grafo.csv"):
-    """
-    Salva as informações de nós, arestas e pesos do grafo em um csv.
-
-
-    Parâmetros:
-    - grafo (networkx.Graph): o grafo a ser salvo.
-    - caminho_csv (str): caminho do arquivo CSV a ser salvo.
-    """
 
     with open(caminho_csv, mode='w', newline='') as arquivo_csv:
         escritor = csv.writer(arquivo_csv)

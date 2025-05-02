@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# Array associativo: IP → container
+# Cria um vetor associativo com a estrutura ip -> container
 declare -A ip_para_container
 
-# Conjunto de roteadores (usando outra estrutura para evitar duplicatas)
+# Cria um dicionário responsável por verificar se um roteador já foi adicionado (evitando duplicatas)
 declare -A roteadores_map
+# Cria uma lista ordenada de roteadores
 roteadores=()
 
-# Preencher o mapeamento IP → container a partir do docker-compose.yml
+# Leitura do docker-compose
 while read -r line; do
   if [[ $line == *"container_name:"* ]]; then
     container=$(echo $line | awk '{print $2}')
@@ -16,7 +17,7 @@ while read -r line; do
     ip=$(echo $line | awk '{print $2}')
     ip_para_container[$ip]=$container
 
-    # Adiciona apenas se for roteador e ainda não tiver sido adicionado
+    # Adiciona apenas roteadores que não foram adicionados
     if [[ "$container" =~ ^r[0-9]+$ ]] && [[ -z "${roteadores_map[$container]}" ]]; then
       roteadores+=("$container")
       roteadores_map[$container]=1
@@ -24,14 +25,14 @@ while read -r line; do
   fi
 done < docker-compose.yml
 
-# Lista de IPs
+# Coleta todos os ips encontrados
 ips=("${!ip_para_container[@]}")
 
-# Cabeçalho
+# Imprime cabeçalho
 echo "Teste de conectividade entre os roteadores:"
 echo "==========================================="
 
-# Loop de testes
+# Loop de testes de ping
 for origem in "${roteadores[@]}"; do
   echo -e "\n### Pings a partir do $origem ###"
   for destino_ip in "${ips[@]}"; do
