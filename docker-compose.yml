@@ -24,12 +24,16 @@ services:
     networks:
       r1_hosts_net:
         ipv4_address: 192.168.6.3
+    cap_add:
+    - NET_ADMIN
   r1_h2:
     build: ./host
     container_name: r1_h2
     networks:
       r1_hosts_net:
         ipv4_address: 192.168.6.4
+    cap_add:
+    - NET_ADMIN
   r2:
     build: ./roteador
     container_name: r2
@@ -54,12 +58,16 @@ services:
     networks:
       r2_hosts_net:
         ipv4_address: 192.168.7.3
+    cap_add:
+    - NET_ADMIN
   r2_h2:
     build: ./host
     container_name: r2_h2
     networks:
       r2_hosts_net:
         ipv4_address: 192.168.7.4
+    cap_add:
+    - NET_ADMIN
   r3:
     build: ./roteador
     container_name: r3
@@ -87,12 +95,16 @@ services:
     networks:
       r3_hosts_net:
         ipv4_address: 192.168.8.3
+    cap_add:
+    - NET_ADMIN
   r3_h2:
     build: ./host
     container_name: r3_h2
     networks:
       r3_hosts_net:
         ipv4_address: 192.168.8.4
+    cap_add:
+    - NET_ADMIN
   r4:
     build: ./roteador
     container_name: r4
@@ -114,12 +126,16 @@ services:
     networks:
       r4_hosts_net:
         ipv4_address: 192.168.9.3
+    cap_add:
+    - NET_ADMIN
   r4_h2:
     build: ./host
     container_name: r4_h2
     networks:
       r4_hosts_net:
         ipv4_address: 192.168.9.4
+    cap_add:
+    - NET_ADMIN
   r5:
     build: ./roteador
     container_name: r5
@@ -144,12 +160,16 @@ services:
     networks:
       r5_hosts_net:
         ipv4_address: 192.168.10.3
+    cap_add:
+    - NET_ADMIN
   r5_h2:
     build: ./host
     container_name: r5_h2
     networks:
       r5_hosts_net:
         ipv4_address: 192.168.10.4
+    cap_add:
+    - NET_ADMIN
 networks:
   r1_r2_net:
     driver: bridge

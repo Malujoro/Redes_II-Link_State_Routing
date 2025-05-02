@@ -83,10 +83,7 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
                 'networks': {
                     host_net: {'ipv4_address': host_ip}
                 },
-                # 'extra_hosts': [
-                #     # Adiciona o roteador como gateway para os hosts
-                #     f"{r}:{gateway_ip}"
-                # ]
+                'cap_add': ['NET_ADMIN']
             }
 
         subnet_count += 1

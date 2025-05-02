@@ -1,10 +1,15 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
+  iproute2 \
   iputils-ping \
   net-tools \
-  curl \
   nano \
+  curl \
+  traceroute \
   && rm -rf /var/lib/apt/lists/*
 
-CMD ["bash", "-c", "while true; do sleep 1000; done"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+CMD ["/entrypoint.sh"]
