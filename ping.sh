@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# Lista de roteadores
-roteadores=(r1 r2 r3 r4 r5)
-
 # Array associativo: IP → container
 declare -A ip_para_container
+
+# Conjunto de roteadores (usando outra estrutura para evitar duplicatas)
+declare -A roteadores_map
+roteadores=()
 
 # Preencher o mapeamento IP → container a partir do docker-compose.yml
 while read -r line; do
@@ -14,6 +15,12 @@ while read -r line; do
   if [[ $line == *"ipv4_address:"* ]]; then
     ip=$(echo $line | awk '{print $2}')
     ip_para_container[$ip]=$container
+
+    # Adiciona apenas se for roteador e ainda não tiver sido adicionado
+    if [[ "$container" =~ ^r[0-9]+$ ]] && [[ -z "${roteadores_map[$container]}" ]]; then
+      roteadores+=("$container")
+      roteadores_map[$container]=1
+    fi
   fi
 done < docker-compose.yml
 

@@ -1,23 +1,24 @@
 # Redes_II-Link_State_Routing
 
 Criar ambiente
-python -m venv .venv
+```python -m venv .venv```
 
 Ativar ambiente
-source .venv/bin/activate
+```source .venv/bin/activate```
 
 Instalação das dependências
-pip install -r requirements.txt
+```pip install -r requirements.txt```
 
-Geração do grafo, executando o grafo.py
+Geração do grafo, executando o ```grafo.py```
 
-Geração do compose, executando o compose.py
+Geração do compose, executando o ```compose.py```
 
-Executar o init.sh (responsável também por reiniciar o sistema, caso necesśario)
+Para iniciar pela primeira vez, basta executar ```sudo docker compose up --build```
 
-Para testar a conexão (ping) entre os roteadores e todos os outros componentes (roteadores e hosts), executar o ping.sh
+Caso seja necessário reiniciar o sistema, execute o ```init.sh```
 
-Para testar a conexão (ping) entre os hostos e os outros hosts, executar o ping2.sh
+Para fechar o sistema, execute ```sudo docker compose down```
 
-~Método para gerar o requirements.txt
-pip freeze > requirements.txt
+Para testar a conexão (ping) entre os roteadores e todos os outros componentes (roteadores e hosts), executar o ```ping.sh```
+
+Para testar a conexão (ping) entre os hostos e os outros hosts, executar o ```ping2.sh```
