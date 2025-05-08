@@ -9,7 +9,9 @@ import ipaddress
 
 class LSDB:
 
-    __slots__ = ["_tabela", "_router_id", "_roteamento", "_neighbors_ip"]
+    __slots__ = [
+        "_tabela", "_router_id", "_roteamento", "_neighbors_ip"
+    ]
 
     def __init__(self, router_id: str, neighbors_ip: dict[str: str]):
         self._router_id = router_id
@@ -116,8 +118,9 @@ class LSDB:
 
 class HelloSender:
 
-    __slots__ = ["_router_id", "_interfaces",
-                 "_neighbors", "_interval", "_PORTA"]
+    __slots__ = [
+        "_router_id", "_interfaces", "_neighbors", "_interval", "_PORTA"
+    ]
 
     def __init__(self, router_id: str, interfaces: list[dict[str: str]], neighbors: dict[str: str], interval: int = 10, PORTA: int = 5000):
         self._router_id = router_id
@@ -168,8 +171,9 @@ class HelloSender:
 
 class LSASender:
 
-    __slots__ = ["_router_id", "_neighbors_ip", "_neighbors_cost",
-                 "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb", "_interfaces"]
+    __slots__ = [
+        "_router_id", "_neighbors_ip", "_neighbors_cost", "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb", "_interfaces"
+    ]
 
     def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], interfaces: list[dict[str: str]], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
         self._router_id = router_id
@@ -245,42 +249,65 @@ class LSASender:
                 target=self.enviar_para_vizinhos, daemon=True)
             thread_emissor.start()
 
-
 class Roteador:
+    """
+        Classe que representa um roteador de rede em uma simulação de protocolo de roteamento
+    """
 
-    __slots__ = ["_router_id", "_interfaces", "_PORTA", "_lsa", "_lsdb", "_BUFFER_SIZE",
-                 "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"]
+    __slots__ = [
+        "_router_id", "_interfaces", "_PORTA", "_lsa", "_lsdb", "_BUFFER_SIZE", "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"
+    ]
 
     def __init__(self, router_id: str, PORTA: int = 5000, BUFFER_SIZE: int = 4096):
+        """
+        Inicializa um novo roteador com seu id, porta de escuta e tamanho do buffer de recepção
+
+        Args:
+            router_id (str): Identificador único do roteador
+            PORTA (int): Porta UDP onde o roteador irá escutar os pacotes (Padrão: 5000)
+            BUFFER_SIZE (int): Tamanho máximo do buffer de recepção (Padrão: 4096)
+        """
         self._router_id = router_id
         self._interfaces = self.listar_enderecos()
         self._PORTA = PORTA
         self._BUFFER_SIZE = BUFFER_SIZE
-        self._neighbors_detected = {}
-        self._neighbors_recognized = {}
+        self._neighbors_detected = {}  # Vizinhos detectados pelo HELLO
+        self._neighbors_recognized = {}  # Vizinhos reconhecidos bidirecionalmente
         self._lsdb = LSDB(router_id, self._neighbors_recognized)
         self._lsa = LSASender(
-            self._router_id, self._neighbors_recognized, self._neighbors_detected, self._interfaces, self._lsdb)
+            self._router_id, self._neighbors_recognized,
+            self._neighbors_detected, self._interfaces, self._lsdb
+        )
         self._gerenciador_vizinhos = GerenciadorVizinhos(
-            self._router_id, self._lsa, self._lsdb)
+            self._router_id, self._lsa, self._lsdb
+        )
 
     def receber_pacotes(self):
+        """
+        Inicia a escuta de pacotes UDP na porta definida
+        Trata pacotes do tipo HELLO e LSA
+        """
         sock = create_socket()
         # Escuta em todas as interfaces
         sock.bind(("", self._PORTA))
 
         while True:
             try:
+                # Recebe o pacote, convertendo-o em json
                 data, address = sock.recvfrom(self._BUFFER_SIZE)
                 mensagem = data.decode("utf-8")
                 pacote = json.loads(mensagem)
+                # Recebe o tipo do pacote e o id do roteador emissor
                 tipo_pacote = pacote.get("type")
                 received_id = pacote.get("router_id")
+                # Caso o pacote tenha sido enviado por outro roteador
                 if (received_id != self._router_id):
+                    # Recebe o ip do emissor
                     received_ip = address[0]
                     print(
                         f"Pacote {tipo_pacote} recebido de [{received_id}] {received_ip}")
 
+                    # Processa o pacote baseado em seu tipo
                     if (tipo_pacote == "HELLO"):
                         self._gerenciador_vizinhos.processar_hello(
                             pacote, received_ip)
@@ -291,18 +318,29 @@ class Roteador:
             except Exception as e:
                 print(f"Erro ao receber pacote: {e}")
 
-    def listar_enderecos(self):
+    def listar_enderecos(self) -> list[dict]:
+        """
+        Lista os endereços IP das interfaces do sistema
+
+        Retorna: 
+            list[dict]: Lista de dicionários com endereços IP (e broadcast, caso sejam das conexões com outros roteadores)
+                        As interfaces conectadas a redes locais (iniciadas em 192) são representadas como rede /24
+        """
         interfaces = psutil.net_if_addrs()
         interfaces_list = []
         for interface, addresses in interfaces.items():
+            # Filtra apenas as interfaces eth
             if (interface.startswith("eth")):
                 for address in addresses:
+                    # Caso seja da família IPv4
                     if (address.family == socket.AF_INET):
+                        # Caso seja o endereço de uma rede local (iniciada em 192)
                         if (address.address.startswith("192")):
+                            # Formata o ip como rede /24
                             ip = ipaddress.ip_address(address.address)
                             rede = ipaddress.IPv4Network(
                                 f"{ip}/24", strict=False)
-                            
+
                             interfaces_list.append(
                                 {"address": f"{rede.network_address}/24"})
                         else:
@@ -313,22 +351,32 @@ class Roteador:
         return interfaces_list
 
     def iniciar(self):
+        """
+        Inicia o funcionamento do roteador:
+        - Inicializa uma thread para escutar pacotes
+        - Inicia o envio periódico de pacotes HELLO
+        - Mantém o processo ativo com um looping infinito
+        """
         hello = HelloSender(self._router_id, self._interfaces,
                             self._neighbors_detected)
 
+        # Thread para recepção de pacotes
         thread_receptor = threading.Thread(
             target=self.receber_pacotes, daemon=True)
         thread_receptor.start()
 
+        # Inicia o envio de pacotes HELLO
         hello.iniciar()
 
+        # Loop para manter o processo vivo
         while True:
             time.sleep(1)
 
 class GerenciadorVizinhos:
 
-    __slots__ = ["_router_id", "_lsa", "_lsdb",
-                 "_neighbors_detected", "_neighbors_recognized"]
+    __slots__ = [
+        "_router_id", "_lsa", "_lsdb", "_neighbors_detected", "_neighbors_recognized"
+    ]
 
     def __init__(self, router_id: str, lsa: LSASender, lsdb: LSDB):
         self._router_id = router_id
@@ -366,15 +414,18 @@ class GerenciadorVizinhos:
             custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
         return int(custo)
 
+# Função responsável por criar um socket UDP IPv4
 def create_socket():
     return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
 if (__name__ == "__main__"):
+    # Recebe o nome do roteador, definido por uma variável de ambiente
     router_id = os.getenv("CONTAINER_NAME")
     if (not router_id):
         raise ValueError(
             "CONTAINER_NAME não definido nas variáveis de ambiente")
 
+    # Executa o algoritmo de roteador
     roteador = Roteador(router_id)
     roteador.iniciar()
