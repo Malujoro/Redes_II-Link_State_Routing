@@ -138,7 +138,7 @@ class LSDB:
     def atualizar_proximo_pulo(self, caminhos: dict):
         """
         Percorre os menores caminhos encontrados para estabelecer quem será o próximo pulo para cada roteador, partindo do roteador atual
-        
+
         Args:
             caminhos (dict): Dicionário com a chave sendo o roteador de destino e o valor sendo o roteador anterior a ele
         """
@@ -172,10 +172,10 @@ class LSDB:
                         try:
                             subprocess.run(comando, check=True)
                             print(
-                                f"Rota adicionada: {ip_destino} -> {ip_gateway}")
+                                f"[{self._router_id}] Rota adicionada: {ip_destino} -> {ip_gateway} [{roteador_gateway}]")
                         except subprocess.CalledProcessError as e:
                             print(
-                                f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}]")
+                                f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}] ({self._router_id} -> {roteador_gateway})")
 
 class HelloSender:
     """
@@ -247,7 +247,7 @@ class HelloSender:
                 print(
                     f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
             except Exception as e:
-                print(f"[{self._router_id}] Erro ao enviar: {e}")
+                print(f"[{self._router_id}] Erro ao enviar para {broadcast_ip}: {e}")
 
             # Timer para envio de um novo pacote HELLO
             time.sleep(self._interval)
@@ -347,13 +347,14 @@ class LSASender:
             message = json.dumps(pacote).encode("utf-8")
 
             # Envia o LSA para cada um de seus vizinhos diretos
-            for ip in self._neighbors_ip.values():
+            for neighbor_id, ip in self._neighbors_ip.items():
                 try:
                     sock.sendto(message, (ip, self._PORTA))
                     print(
-                        f"[{self._router_id}] Pacote LSA enviado para {ip}")
+                        f"[{self._router_id}] Pacote LSA enviado para {ip} [{neighbor_id}]")
                 except Exception as e:
-                    print(f"[{self._router_id}] Erro ao enviar: {e}")
+                    print(
+                        f"[{self._router_id}] Erro ao enviar para [{neighbor_id}]: {e}")
 
             # Timer para envio de um novo pacote LSA
             time.sleep(self._interval)
@@ -370,18 +371,18 @@ class LSASender:
         sock = create_socket()
         message = json.dumps(pacote).encode("utf-8")
 
-        # Cria uma lista com os vizinhos que receberão o pacote
+        # Cria uma lista de tuplas (ID, IP) com os vizinhos que receberão o pacote 
         neighbors_list = [
-            ip for ip in self._neighbors_ip.values() if ip != sender_ip]
+            (neighbor_id, ip) for neighbor_id, ip in self._neighbors_ip.items() if ip != sender_ip]
 
         # Encaminha o pacote para seus vizinhos
-        for ip in neighbors_list:
+        for neighbor_id, ip in neighbors_list:
             try:
                 sock.sendto(message, (ip, self._PORTA))
                 print(
-                    f"[{self._router_id}] Pacote LSA encaminhado para {ip}")
+                    f"[{self._router_id}] Pacote LSA encaminhado para {ip} [{neighbor_id}]")
             except Exception as e:
-                print(f"[{self._router_id}] Erro ao encaminhar: {e}")
+                print(f"[{self._router_id}] Erro ao encaminhar para [{neighbor_id}]: {e}")
 
     def iniciar(self):
         """
@@ -452,7 +453,7 @@ class Roteador:
                     # Recebe o ip do emissor
                     sender_ip = address[0]
                     print(
-                        f"Pacote {tipo_pacote} recebido de [{sender_id}] {sender_ip}")
+                        f"[{self._router_id}] Pacote {tipo_pacote} recebido de [{sender_id}] {sender_ip}")
 
                     # Processa o pacote baseado em seu tipo
                     if (tipo_pacote == "HELLO"):
