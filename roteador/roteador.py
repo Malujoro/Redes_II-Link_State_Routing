@@ -8,18 +8,44 @@ import subprocess
 import ipaddress
 
 class LSDB:
+    """
+    Representa o Banco de Dados de Estado de Enlace (Link State Database - LSDB), responsável por armazenar as informações recebidas via LSA (Link State Advertisement) e calcular os melhores caminhos na rede utilizando o algoritmo de Dijkstra
+    """
 
     __slots__ = [
         "_tabela", "_router_id", "_roteamento", "_neighbors_ip"
     ]
 
-    def __init__(self, router_id: str, neighbors_ip: dict[str: str]):
-        self._router_id = router_id
-        self._tabela = {}
-        self._roteamento = {}
-        self._neighbors_ip = neighbors_ip
+    def __init__(self, router_id: str, neighbors_ip: dict[str, str]):
+        """
+        Inicializa um novo LSDB
 
-    def criar_entrada(self, sequence_number, timestamp, addresses, links):
+        Args: 
+            router_id (str): Identificador único do roteador
+            neighbors_ip (dict[str, str]): Dicionário onde a chave é o ID do vizinho e o valor é seu IP
+
+        """
+        self._router_id = router_id
+        self._neighbors_ip = neighbors_ip
+        # Registro das informações recebidas pelo LSA
+        self._tabela = {}
+        # Dicionário que mantém registro dos roteadores de destino e os próximos saltos para alcançá-los
+        self._roteamento = {}
+
+    def criar_entrada(self, sequence_number: int, timestamp: float, addresses: list[str], links: dict[str, int]) -> dict:
+        """
+        Cria uma entrada na tabela baseado nas informações do pacote
+
+        Args:
+            sequence_number (int): Número de sequência
+            timestamp (float): Tempo de criação do pacote
+            addresses (list[str]): Lista com todos os endereços IP das interfaces
+            links (dict[str, int]): Dicionário onde a chave é o ID do vizinho e o valor é o custo para alcançá-lo
+
+        Returns: 
+            dict: Dicionário com os dados da entrada
+        """
+
         return {
             "sequence_number": sequence_number,
             "timestamp": timestamp,
@@ -27,29 +53,52 @@ class LSDB:
             "links": links,
         }
 
-    def atualizar(self, pacote):
+    def atualizar(self, pacote: dict) -> bool:
+        """
+        Atualiza a tabela de roteamento após receber um pacote LSA válido
+
+        Args:
+            pacote (dict): Pacote LSA no formato de dicionário
+
+        Returns:
+            bool: Um booleano indicando se a tabela foi atualizada ou não
+        """
+        # Extrai o ID do emissor e número de sequência do pacote
         router_id = pacote["router_id"]
         sequence_number = pacote["sequence_number"]
 
+        # Retorna a entrada (caso exista) do emissor na LSDB
         entrada = self._tabela.get(router_id)
 
+        # O pacote é inválido quando já há uma entrada "igual ou mais antiga" do que o pacote recém-chegado
         if (entrada and sequence_number <= entrada["sequence_number"]):
             return False
 
+        # Cria uma entrada na tabela
         self._tabela[pacote["router_id"]] = self.criar_entrada(
             sequence_number, pacote["timestamp"], pacote["addresses"], pacote["links"])
 
+        # Verifica se há um roteador "desconhecido" presente nos vizinhos de algum roteador conhecido, criando uma entrada para o mesmo
         for vizinho in pacote["links"].keys():
             if (vizinho not in self._tabela):
                 print(f"[LSDB] Descoberto novo roteador: {vizinho}")
                 self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
 
+        # Calcula o menor caminho para se chegar em cada um dos outros roteadores
         caminhos = self.dijkstra()
+        # Percorre os menores caminhos encontrados para estabelecer quem será o próximo pulo
         self.atualizar_proximo_pulo(caminhos)
+        # Atualiza as rotas na tabela de roteamento
         self.atualizar_rotas()
         return True
 
-    def dijkstra(self):
+    def dijkstra(self) -> dict:
+        """
+        Calcula o caminho com menor custo entre o roteador atual e todos os demais roteadores conhecidos
+
+        Returns:
+            dict: Dicionário com a chave sendo o roteador de destino e o valor sendo o roteador anterior a ele
+        """
         distancias = {}
         caminhos = {}
         marcados = {}
@@ -87,6 +136,12 @@ class LSDB:
         return caminhos
 
     def atualizar_proximo_pulo(self, caminhos: dict):
+        """
+        Percorre os menores caminhos encontrados para estabelecer quem será o próximo pulo para cada roteador, partindo do roteador atual
+        
+        Args:
+            caminhos (dict): Dicionário com a chave sendo o roteador de destino e o valor sendo o roteador anterior a ele
+        """
         for destino in caminhos.keys():
             if (destino != self._router_id):
                 pulo = destino
@@ -97,12 +152,18 @@ class LSDB:
         self._roteamento = dict(sorted(self._roteamento.items()))
 
     def atualizar_rotas(self):
+        """
+        Atualiza as rotas na tabela de roteamento, baseado no próximo pulo encontrado pela função atualizar_proximo_pulo
+        """
         for roteador_destino, roteador_gateway in list(self._roteamento.items()):
+            # Caso não seja o próprio roteador
             if (roteador_destino != self._router_id):
+                # Ignora o roteador caso o caminho não seja conhecido
                 if (roteador_gateway not in self._neighbors_ip):
                     print(
                         f"[LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
                 else:
+                    # Atualiza a rota associando todos os ips do vizinho ao próximo pulo
                     for ip_destino in self._tabela[roteador_destino]["addresses"]:
                         ip_gateway = self._neighbors_ip[roteador_gateway]
 
@@ -117,20 +178,43 @@ class LSDB:
                                 f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}]")
 
 class HelloSender:
+    """
+    Classe responsável por criar e enviar pacotes HELLO periodicamente para vizinhos em uma rede
+    """
 
     __slots__ = [
         "_router_id", "_interfaces", "_neighbors", "_interval", "_PORTA"
     ]
 
-    def __init__(self, router_id: str, interfaces: list[dict[str: str]], neighbors: dict[str: str], interval: int = 10, PORTA: int = 5000):
+    def __init__(self, router_id: str, interfaces: list[dict[str, str]], neighbors: dict[str, str], interval: int = 10, PORTA: int = 5000):
+        """
+        Inicializa um novo emissor
+
+        Args:
+            router_id (str): Identificador único do roteador
+            interfaces (list[dict[str, str]]): Lista de dicionários representando as interfaces de rede. Cada dicionário deve conter:
+                - "address": IP da interface
+                - "broadcast": IP de broadcast (se aplicável) 
+            neighbors (dict[str, str]): Dicionário com os roteadores vizinhos conhecidos. A chave é o ID do vizinho e o valor é seu IP
+            interval (int, opcional): Tempo de intervalo para o envio periódico dos pacotes HELLO
+            PORTA (int, opcional): Porta UDP onde o roteador irá escutar os pacotes (Padrão: 5000)
+        """
         self._router_id = router_id
         self._interfaces = interfaces
         self._neighbors = neighbors
         self._interval = interval
         self._PORTA = PORTA
 
-    # Função para construção do pacote Hello
-    def criar_pacote(self, ip_address: str):
+    def criar_pacote(self, ip_address: str) -> dict:
+        """
+        Cria um pacote HELLO
+
+        Args:
+            ip_address (str): Endereço IP da interface local
+
+        Returns: 
+            dict: Dicionário com os dados do pacote HELLO
+        """
         return {
             "type": "HELLO",
             "router_id": self._router_id,
@@ -140,26 +224,43 @@ class HelloSender:
         }
 
     def enviar_broadcast(self, ip_address: str, broadcast_ip: str):
+        """
+        Inicia o envio periódico de pacotes HELLO por meio do broadcast
+
+        Args: 
+            ip_address (str): Endereço IP da interface local
+            broadcast_ip (str): Endereço IP de broadcast da rede
+        """
         sock = create_socket()
+        # Configura o socket para envio de broadcast
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
         while True:
+            # Cria o pacote
             pacote = self.criar_pacote(ip_address)
+            # Converte no formato necessário
             message = json.dumps(pacote).encode("utf-8")
 
             try:
+                # Envia o pacote
                 sock.sendto(message, (broadcast_ip, self._PORTA))
                 print(
                     f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
             except Exception as e:
                 print(f"[{self._router_id}] Erro ao enviar: {e}")
 
+            # Timer para envio de um novo pacote HELLO
             time.sleep(self._interval)
 
     def iniciar(self):
+        """
+        Inicia o funcionamento do emissor de HELLO:
+        - Filtra as interfaces para apenas aquelas que possuem ip de broadcast
+        - Inicializa uma thread para cada interface, responsável por enviar os pacotes
+        """
         interfaces = [
             item for item in self._interfaces if "broadcast" in item]
-        print(interfaces)
+
         for interface_info in interfaces:
             ip_address = interface_info["address"]
             broadcast_ip = interface_info["broadcast"]
@@ -170,12 +271,31 @@ class HelloSender:
                 thread_emissor.start()
 
 class LSASender:
+    """
+    Classe responsável por criar, enviar e encaminhar pacotes LSA (Link State Advertisement) na rede
+
+    Envia periodicamente pacotes LSA para vizinhos diretos e também encaminha os pacotes recebidos para outros vizinhos
+    """
 
     __slots__ = [
         "_router_id", "_neighbors_ip", "_neighbors_cost", "_interval", "_PORTA", "_sequence_number", "_iniciado", "_lsdb", "_interfaces"
     ]
 
-    def __init__(self, router_id: str, neighbors_ip: dict[str: str], neighbors_cost: dict[str: int], interfaces: list[dict[str: str]], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
+    def __init__(self, router_id: str, neighbors_ip: dict[str, str], neighbors_cost: dict[str, int], interfaces: list[dict[str, str]], lsdb: LSDB, interval: int = 30, PORTA: int = 5000):
+        """
+        Inicializa um novo emissor
+
+        Args:
+            router_id (str): Identificador único do roteador
+            neighbors_ip (dict[str, str]): Dicionário onde a chave é o ID do vizinho e o valor é seu IP
+            neighbors_cost (dict[str, str]): Dicionário onde a chave é o ID do vizinho e o valor é o custo para alcançá-lo
+            interfaces (list[dict[str, str]]): Lista de dicionários representando as interfaces de rede. Cada dicionário deve conter:
+                - "address": IP da interface
+                - "broadcast": IP de broadcast (se aplicável) 
+            interval (int, opcional): Tempo de intervalo para o envio periódico dos pacotes HELLO
+            PORTA (int, opcional): Porta UDP onde o roteador irá escutar os pacotes (Padrão: 5000)
+        """
+
         self._router_id = router_id
         self._neighbors_ip = neighbors_ip
         self._neighbors_cost = neighbors_cost
@@ -187,10 +307,6 @@ class LSASender:
         self._interfaces = interfaces
 
     @property
-    def router_id(self):
-        return self._router_id
-
-    @property
     def neighbors_ip(self):
         return self._neighbors_ip
 
@@ -198,8 +314,14 @@ class LSASender:
     def neighbors_cost(self):
         return self._neighbors_cost
 
-    # Função para construção do pacote LSA
-    def criar_pacote(self):
+    def criar_pacote(self) -> dict:
+        """
+        Cria um pacote LSA
+
+        Returns: 
+            dict: Dicionário com os dados do pacote LSA
+        """
+
         self._sequence_number += 1
         return {
             "type": "LSA",
@@ -211,12 +333,20 @@ class LSASender:
         }
 
     def enviar_para_vizinhos(self):
+        """
+        Inicia o envio periódico de pacotes LSA para todos os seus vizinhos diretos
+        """
+
         sock = create_socket()
         while True:
+            # Cria o pacote
             pacote = self.criar_pacote()
+            # Atualiza a LSDB com os próprios dados
             self._lsdb.atualizar(pacote)
+            # Converte no formato necessário
             message = json.dumps(pacote).encode("utf-8")
 
+            # Envia o LSA para cada um de seus vizinhos diretos
             for ip in self._neighbors_ip.values():
                 try:
                     sock.sendto(message, (ip, self._PORTA))
@@ -225,15 +355,26 @@ class LSASender:
                 except Exception as e:
                     print(f"[{self._router_id}] Erro ao enviar: {e}")
 
+            # Timer para envio de um novo pacote LSA
             time.sleep(self._interval)
 
-    def encaminhar_para_vizinhos(self, pacote: dict, neighbor_ip: str):
+    def encaminhar_para_vizinhos(self, pacote: dict, sender_ip: str):
+        """
+        Encaminha os pacotes LSA recebidos para todos os vizinhos (com exceção do remetente original do pacote)
+
+        Args: 
+            pacote (dict): Pacote LSA no formato de dicionário
+            sender_ip (str): IP do roteador emissor do pacote
+        """
+
         sock = create_socket()
         message = json.dumps(pacote).encode("utf-8")
 
+        # Cria uma lista com os vizinhos que receberão o pacote
         neighbors_list = [
-            ip for ip in self._neighbors_ip.values() if ip != neighbor_ip]
+            ip for ip in self._neighbors_ip.values() if ip != sender_ip]
 
+        # Encaminha o pacote para seus vizinhos
         for ip in neighbors_list:
             try:
                 sock.sendto(message, (ip, self._PORTA))
@@ -243,6 +384,10 @@ class LSASender:
                 print(f"[{self._router_id}] Erro ao encaminhar: {e}")
 
     def iniciar(self):
+        """
+        Inicia o funcionamento do emissor de LSA, caso não tenha sido iniciado:
+        - Inicializa uma thread responsável por enviar os pacotes
+        """
         if (not self._iniciado):
             self._iniciado = True
             thread_emissor = threading.Thread(
@@ -251,7 +396,7 @@ class LSASender:
 
 class Roteador:
     """
-        Classe que representa um roteador de rede em uma simulação de protocolo de roteamento
+    Representa um roteador de rede em uma simulação de protocolo de roteamento
     """
 
     __slots__ = [
@@ -260,19 +405,21 @@ class Roteador:
 
     def __init__(self, router_id: str, PORTA: int = 5000, BUFFER_SIZE: int = 4096):
         """
-        Inicializa um novo roteador com seu id, porta de escuta e tamanho do buffer de recepção
+        Inicializa um novo roteador
 
         Args:
             router_id (str): Identificador único do roteador
-            PORTA (int): Porta UDP onde o roteador irá escutar os pacotes (Padrão: 5000)
-            BUFFER_SIZE (int): Tamanho máximo do buffer de recepção (Padrão: 4096)
+            PORTA (int, opcional): Porta UDP onde o roteador irá escutar os pacotes (Padrão: 5000)
+            BUFFER_SIZE (int, opcional): Tamanho máximo do buffer de recepção (Padrão: 4096)
         """
         self._router_id = router_id
         self._interfaces = self.listar_enderecos()
         self._PORTA = PORTA
         self._BUFFER_SIZE = BUFFER_SIZE
-        self._neighbors_detected = {}  # Vizinhos detectados pelo HELLO
-        self._neighbors_recognized = {}  # Vizinhos reconhecidos bidirecionalmente
+        # Vizinhos detectados pelo HELLO
+        self._neighbors_detected = {}
+        # Vizinhos reconhecidos bidirecionalmente
+        self._neighbors_recognized = {}
         self._lsdb = LSDB(router_id, self._neighbors_recognized)
         self._lsa = LSASender(
             self._router_id, self._neighbors_recognized,
@@ -297,23 +444,23 @@ class Roteador:
                 data, address = sock.recvfrom(self._BUFFER_SIZE)
                 mensagem = data.decode("utf-8")
                 pacote = json.loads(mensagem)
-                # Recebe o tipo do pacote e o id do roteador emissor
+                # Retorna o tipo do pacote e o id do roteador emissor
                 tipo_pacote = pacote.get("type")
-                received_id = pacote.get("router_id")
+                sender_id = pacote.get("router_id")
                 # Caso o pacote tenha sido enviado por outro roteador
-                if (received_id != self._router_id):
+                if (sender_id != self._router_id):
                     # Recebe o ip do emissor
-                    received_ip = address[0]
+                    sender_ip = address[0]
                     print(
-                        f"Pacote {tipo_pacote} recebido de [{received_id}] {received_ip}")
+                        f"Pacote {tipo_pacote} recebido de [{sender_id}] {sender_ip}")
 
                     # Processa o pacote baseado em seu tipo
                     if (tipo_pacote == "HELLO"):
                         self._gerenciador_vizinhos.processar_hello(
-                            pacote, received_ip)
+                            pacote, sender_ip)
                     elif (tipo_pacote == "LSA"):
                         self._gerenciador_vizinhos.processar_lsa(
-                            pacote, received_ip)
+                            pacote, sender_ip)
 
             except Exception as e:
                 print(f"Erro ao receber pacote: {e}")
@@ -322,9 +469,9 @@ class Roteador:
         """
         Lista os endereços IP das interfaces do sistema
 
-        Retorna: 
+        Returns: 
             list[dict]: Lista de dicionários com endereços IP (e broadcast, caso sejam das conexões com outros roteadores)
-                        As interfaces conectadas a redes locais (iniciadas em 192) são representadas como rede /24
+                        Interfaces com IPs iniciados em 192 são tratadas como redes /24, sendo representadas com seu endereço de rede
         """
         interfaces = psutil.net_if_addrs()
         interfaces_list = []
@@ -373,54 +520,90 @@ class Roteador:
             time.sleep(1)
 
 class GerenciadorVizinhos:
+    """
+    Classe responsável por processar pacotes HELLO e LSA além de gerenciar os vizinhos do roteador
+    """
 
     __slots__ = [
         "_router_id", "_lsa", "_lsdb", "_neighbors_detected", "_neighbors_recognized"
     ]
 
     def __init__(self, router_id: str, lsa: LSASender, lsdb: LSDB):
+        """
+        Inicializa o gerenciador
+
+        Args: 
+            router_id (str): Identificador único do roteador
+            lsa (LSASender): Emissor de pacotes LSA
+            lsdb (LSDB): Banco de dados de estado de enlace
+        """
         self._router_id = router_id
         self._lsa = lsa
         self._lsdb = lsdb
         self._neighbors_detected = lsa.neighbors_cost
         self._neighbors_recognized = lsa.neighbors_ip
 
-    def processar_hello(self, pacote: dict, received_ip: str):
-        received_id = pacote.get("router_id")
-        self._neighbors_detected[received_id] = self.get_custo(
-            self._router_id, received_id)
+    def processar_hello(self, pacote: dict, sender_ip: str):
+        """
+        Processa um pacote HELLO, reconhecendo vizinhos diretos e iniciando a emissão de pacotes LSA para eles, caso aplicável
+
+        Args: 
+        pacote (dict): Pacote HELLO no formato de dicionário
+        sender_ip (str): IP do roteador emissor do pacote
+        """
+        # Retorna o nome do roteador emissor
+        sender_id = pacote.get("router_id")
+        # Retorna o custo da troca de pacotes entre o roteador e seu vizinho
+        self._neighbors_detected[sender_id] = self.get_custo(
+            self._router_id, sender_id)
+        # Retorna os vizinhos conhecidos do roteador emissor
         neighbors = pacote.get("known_neighbors")
 
-        # print(
-        #     f"neighbors de [{self._router_id}]: {self._neighbors_detected}")
-        # print(
-        #     f"neighbors de [{received_id}]: {neighbors}")
-
-        if ((self._router_id in neighbors) and (received_id not in self._neighbors_recognized)):
-            self._neighbors_recognized[received_id] = received_ip
-            # print(
-            #     f"recognized neighbors de [{router_id}]: {self._neighbors_recognized}")
+        # Caso o emissor tenha reconhecido o roteador atual e ainda não tenha sido registrado como vizinhos conhecidos
+        if ((self._router_id in neighbors) and (sender_id not in self._neighbors_recognized)):
+            # Registra o IP do emissor
+            self._neighbors_recognized[sender_id] = sender_ip
+            # Inicia o envio de pacotes LSA com ele
             self._lsa.iniciar()
 
-    def processar_lsa(self, pacote: dict, received_ip: str):
+    def processar_lsa(self, pacote: dict, sender_ip: str):
+        """
+        Processa o pacote LSA, atualizando a LSDB e, caso seja um pacote válido, encaminhando ele para seus vizinhos
+
+        Args: 
+            pacote (dict): Pacote LSA no formato de dicionário
+            sender_ip (str): IP do roteador emissor do pacote
+        """
         pacote_valido = self._lsdb.atualizar(pacote)
         if (pacote_valido):
-            self._lsa.encaminhar_para_vizinhos(pacote, received_ip)
-        pass
+            self._lsa.encaminhar_para_vizinhos(pacote, sender_ip)
 
-    def get_custo(self, router_id: str, neighbor_id: str):
+    def get_custo(self, router_id: str, neighbor_id: str) -> int:
+        """
+        Retorna o custo da troca de pacotes entre o roteador e seu vizinho, armazenado em variáveis de ambientes 
+
+        Args:
+            router_id (str): Identificador único do roteador
+            neighbor_id (str): Identificador único do vizinho
+
+        Returns:
+            int: Custo da rota
+        """
         custo = os.getenv(f"CUSTO_{router_id}_{neighbor_id}_net")
+        # Caso não esteja no formato r2_r1, está no formato r1_r2
         if (custo == None):
             custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
         return int(custo)
 
-# Função responsável por criar um socket UDP IPv4
 def create_socket():
+    """
+    Cria e retorna um socket UDP IPv4
+    """
     return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
 if (__name__ == "__main__"):
-    # Recebe o nome do roteador, definido por uma variável de ambiente
+    # Retorna o nome do roteador, definido por uma variável de ambiente
     router_id = os.getenv("CONTAINER_NAME")
     if (not router_id):
         raise ValueError(
