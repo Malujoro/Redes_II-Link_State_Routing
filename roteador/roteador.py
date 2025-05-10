@@ -397,7 +397,7 @@ class Roteador:
     """
 
     __slots__ = [
-        "_router_id", "_interfaces", "_PORTA", "_lsa", "_lsdb", "_BUFFER_SIZE", "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"
+        "_router_id", "_interfaces", "_PORTA", "_hello", "_lsa", "_lsdb", "_BUFFER_SIZE", "_neighbors_detected", "_neighbors_recognized", "_gerenciador_vizinhos"
     ]
 
     def __init__(self, router_id: str, PORTA: int = 5000, BUFFER_SIZE: int = 4096):
@@ -417,6 +417,10 @@ class Roteador:
         self._neighbors_detected = {}
         # Vizinhos reconhecidos bidirecionalmente
         self._neighbors_recognized = {}
+        self._hello = HelloSender(
+            self._router_id, self._interfaces, self._neighbors_detected
+        )
+
         self._lsdb = LSDB(router_id, self._neighbors_recognized)
         self._lsa = LSASender(
             self._router_id, self._neighbors_recognized,
@@ -501,16 +505,13 @@ class Roteador:
         - Inicia o envio periódico de pacotes HELLO
         - Mantém o processo ativo com um looping infinito
         """
-        hello = HelloSender(self._router_id, self._interfaces,
-                            self._neighbors_detected)
-
         # Thread para recepção de pacotes
         thread_receptor = threading.Thread(
             target=self.receber_pacotes, daemon=True)
         thread_receptor.start()
 
         # Inicia o envio de pacotes HELLO
-        hello.iniciar()
+        self._hello.iniciar()
 
         # Loop para manter o processo vivo
         while True:
