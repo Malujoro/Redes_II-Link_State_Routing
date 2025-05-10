@@ -81,7 +81,7 @@ class LSDB:
         # Verifica se há um roteador "desconhecido" presente nos vizinhos de algum roteador conhecido, criando uma entrada para o mesmo
         for vizinho in pacote["links"].keys():
             if (vizinho not in self._tabela):
-                print(f"[LSDB] Descoberto novo roteador: {vizinho}")
+                print(f"[{self._router_id}][LSDB] Descoberto novo roteador: {vizinho}")
                 self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
 
         # Calcula o menor caminho para se chegar em cada um dos outros roteadores
@@ -161,7 +161,7 @@ class LSDB:
                 # Ignora o roteador caso o caminho não seja conhecido
                 if (roteador_gateway not in self._neighbors_ip):
                     print(
-                        f"[LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
+                        f"[{self._router_id}][LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
                 else:
                     # Atualiza a rota associando todos os ips do vizinho ao próximo pulo
                     for ip_destino in self._tabela[roteador_destino]["addresses"]:
@@ -233,7 +233,7 @@ class HelloSender:
         sock = create_socket()
         # Configura o socket para envio de broadcast
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        
+
         while True:
             for interface_info in interfaces:
                 ip_address = interface_info["address"]
@@ -448,7 +448,7 @@ class Roteador:
                     # Recebe o ip do emissor
                     sender_ip = address[0]
                     print(
-                        f"[{self._router_id}] Pacote {tipo_pacote} recebido de [{sender_id}] {sender_ip}")
+                        f"[{self._router_id}] Pacote {tipo_pacote} recebido de {sender_ip} [{sender_id}]")
 
                     # Processa o pacote baseado em seu tipo
                     if (tipo_pacote == "HELLO"):
@@ -596,7 +596,6 @@ def create_socket():
     Cria e retorna um socket UDP IPv4
     """
     return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
 
 if (__name__ == "__main__"):
     # Retorna o nome do roteador, definido por uma variável de ambiente
