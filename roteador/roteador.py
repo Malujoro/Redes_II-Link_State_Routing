@@ -81,7 +81,8 @@ class LSDB:
         # Verifica se há um roteador "desconhecido" presente nos vizinhos de algum roteador conhecido, criando uma entrada para o mesmo
         for vizinho in pacote["links"].keys():
             if (vizinho not in self._tabela):
-                print(f"[{self._router_id}][LSDB] Descoberto novo roteador: {vizinho}")
+                print2(
+                    f"[LSDB] Descoberto novo roteador: {vizinho}")
                 self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
 
         # Calcula o menor caminho para se chegar em cada um dos outros roteadores
@@ -160,8 +161,8 @@ class LSDB:
             if (roteador_destino != self._router_id):
                 # Ignora o roteador caso o caminho não seja conhecido
                 if (roteador_gateway not in self._neighbors_ip):
-                    print(
-                        f"[{self._router_id}][LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
+                    print2(
+                        f"[LSDB] Ignorando rota para {roteador_destino} via {roteador_gateway}: gateway não conhecido ainda")
                 else:
                     # Atualiza a rota associando todos os ips do vizinho ao próximo pulo
                     for ip_destino in self._tabela[roteador_destino]["addresses"]:
@@ -171,10 +172,10 @@ class LSDB:
                                    ip_destino, "via", ip_gateway]
                         try:
                             subprocess.run(comando, check=True)
-                            print(
-                                f"[{self._router_id}] Rota adicionada: {ip_destino} -> {ip_gateway} [{roteador_gateway}]")
+                            print2(
+                                f"Rota adicionada: {ip_destino} -> {ip_gateway} [{roteador_gateway}]")
                         except subprocess.CalledProcessError as e:
-                            print(
+                            print2(
                                 f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}] ({self._router_id} -> {roteador_gateway})")
 
 class HelloSender:
@@ -247,11 +248,11 @@ class HelloSender:
                 try:
                     # Envia o pacote
                     sock.sendto(message, (broadcast_ip, self._PORTA))
-                    print(
-                        f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
+                    print2(
+                        f"Pacote HELLO enviado para {broadcast_ip} [broadcast]")
                 except Exception as e:
-                    print(
-                        f"[{self._router_id}] Erro ao enviar para {broadcast_ip}: {e}")
+                    print2(
+                        f"Erro ao enviar para {broadcast_ip}: {e}")
 
             # Timer para envio de um novo pacote HELLO
             time.sleep(self._interval)
@@ -344,11 +345,11 @@ class LSASender:
             for neighbor_id, ip in self._neighbors_ip.items():
                 try:
                     sock.sendto(message, (ip, self._PORTA))
-                    print(
-                        f"[{self._router_id}] Pacote LSA enviado para {ip} [{neighbor_id}]")
+                    print2(
+                        f"Pacote LSA enviado para {ip} [{neighbor_id}]")
                 except Exception as e:
-                    print(
-                        f"[{self._router_id}] Erro ao enviar para [{neighbor_id}]: {e}")
+                    print2(
+                        f"Erro ao enviar para [{neighbor_id}]: {e}")
 
             # Timer para envio de um novo pacote LSA
             time.sleep(self._interval)
@@ -373,11 +374,11 @@ class LSASender:
         for neighbor_id, ip in neighbors_list:
             try:
                 sock.sendto(message, (ip, self._PORTA))
-                print(
-                    f"[{self._router_id}] Pacote LSA encaminhado para {ip} [{neighbor_id}]")
+                print2(
+                    f"Pacote LSA encaminhado para {ip} [{neighbor_id}]")
             except Exception as e:
-                print(
-                    f"[{self._router_id}] Erro ao encaminhar para [{neighbor_id}]: {e}")
+                print2(
+                    f"Erro ao encaminhar para [{neighbor_id}]: {e}")
 
     def iniciar(self):
         """
@@ -447,8 +448,8 @@ class Roteador:
                 if (sender_id != self._router_id):
                     # Recebe o ip do emissor
                     sender_ip = address[0]
-                    print(
-                        f"[{self._router_id}] Pacote {tipo_pacote} recebido de {sender_ip} [{sender_id}]")
+                    print2(
+                        f"Pacote {tipo_pacote} recebido de {sender_ip} [{sender_id}]")
 
                     # Processa o pacote baseado em seu tipo
                     if (tipo_pacote == "HELLO"):
@@ -459,7 +460,7 @@ class Roteador:
                             pacote, sender_ip)
 
             except Exception as e:
-                print(f"Erro ao receber pacote: {e}")
+                print2(f"Erro ao receber pacote: {e}")
 
     def listar_enderecos(self) -> list[dict]:
         """
@@ -597,12 +598,23 @@ def create_socket():
     """
     return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+
 if (__name__ == "__main__"):
     # Retorna o nome do roteador, definido por uma variável de ambiente
     router_id = os.getenv("CONTAINER_NAME")
     if (not router_id):
         raise ValueError(
             "CONTAINER_NAME não definido nas variáveis de ambiente")
+
+    # Cria um bloqueio de print, para evitar concorrência e exibição de várias mensagens de uma vez
+    print_lock = threading.Lock()
+
+    def print2(string: str):
+        """
+        Função para exibição de uma mensagem, padronizando o formato com o nome do container sendo exibido no início 
+        """
+        with print_lock:
+            print(f"[{router_id}] {string}")
 
     # Executa o algoritmo de roteador
     roteador = Roteador(router_id)
