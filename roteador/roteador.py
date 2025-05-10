@@ -223,31 +223,35 @@ class HelloSender:
             "known_neighbors": list(self._neighbors.keys()),
         }
 
-    def enviar_broadcast(self, ip_address: str, broadcast_ip: str):
+    def enviar_broadcast(self):
         """
         Inicia o envio periódico de pacotes HELLO por meio do broadcast
-
-        Args: 
-            ip_address (str): Endereço IP da interface local
-            broadcast_ip (str): Endereço IP de broadcast da rede
         """
+        # Filtra apenas as interfaces que possuem endereço de broadcast
+        interfaces = [item for item in self._interfaces if "broadcast" in item]
+
         sock = create_socket()
         # Configura o socket para envio de broadcast
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
+        
         while True:
-            # Cria o pacote
-            pacote = self.criar_pacote(ip_address)
-            # Converte no formato necessário
-            message = json.dumps(pacote).encode("utf-8")
+            for interface_info in interfaces:
+                ip_address = interface_info["address"]
+                broadcast_ip = interface_info["broadcast"]
 
-            try:
-                # Envia o pacote
-                sock.sendto(message, (broadcast_ip, self._PORTA))
-                print(
-                    f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
-            except Exception as e:
-                print(f"[{self._router_id}] Erro ao enviar para {broadcast_ip}: {e}")
+                # Cria o pacote
+                pacote = self.criar_pacote(ip_address)
+                # Converte no formato necessário
+                message = json.dumps(pacote).encode("utf-8")
+
+                try:
+                    # Envia o pacote
+                    sock.sendto(message, (broadcast_ip, self._PORTA))
+                    print(
+                        f"[{self._router_id}] Pacote HELLO enviado para {broadcast_ip}")
+                except Exception as e:
+                    print(
+                        f"[{self._router_id}] Erro ao enviar para {broadcast_ip}: {e}")
 
             # Timer para envio de um novo pacote HELLO
             time.sleep(self._interval)
@@ -255,20 +259,11 @@ class HelloSender:
     def iniciar(self):
         """
         Inicia o funcionamento do emissor de HELLO:
-        - Filtra as interfaces para apenas aquelas que possuem ip de broadcast
-        - Inicializa uma thread para cada interface, responsável por enviar os pacotes
+        - Inicializa uma thread responsável por enviar os pacotes por broadcast para cada interface
         """
-        interfaces = [
-            item for item in self._interfaces if "broadcast" in item]
-
-        for interface_info in interfaces:
-            ip_address = interface_info["address"]
-            broadcast_ip = interface_info["broadcast"]
-
-            if (broadcast_ip != None):
-                thread_emissor = threading.Thread(target=self.enviar_broadcast, args=(
-                    ip_address, broadcast_ip), daemon=True)
-                thread_emissor.start()
+        thread_emissor = threading.Thread(
+            target=self.enviar_broadcast, daemon=True)
+        thread_emissor.start()
 
 class LSASender:
     """
@@ -336,7 +331,6 @@ class LSASender:
         """
         Inicia o envio periódico de pacotes LSA para todos os seus vizinhos diretos
         """
-
         sock = create_socket()
         while True:
             # Cria o pacote
@@ -371,7 +365,7 @@ class LSASender:
         sock = create_socket()
         message = json.dumps(pacote).encode("utf-8")
 
-        # Cria uma lista de tuplas (ID, IP) com os vizinhos que receberão o pacote 
+        # Cria uma lista de tuplas (ID, IP) com os vizinhos que receberão o pacote
         neighbors_list = [
             (neighbor_id, ip) for neighbor_id, ip in self._neighbors_ip.items() if ip != sender_ip]
 
@@ -382,7 +376,8 @@ class LSASender:
                 print(
                     f"[{self._router_id}] Pacote LSA encaminhado para {ip} [{neighbor_id}]")
             except Exception as e:
-                print(f"[{self._router_id}] Erro ao encaminhar para [{neighbor_id}]: {e}")
+                print(
+                    f"[{self._router_id}] Erro ao encaminhar para [{neighbor_id}]: {e}")
 
     def iniciar(self):
         """
