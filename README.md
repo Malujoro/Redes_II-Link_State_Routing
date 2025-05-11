@@ -23,6 +23,14 @@ Para que o projeto funcione da maneira esperada, faz uso dos seguintes component
 
 Considerando que os roteadores precisarão trocar pacotes constantemente, priorizando a velocidade de comunicação e aceitando possíveis falhas (já que os pacotes são enviados periodicamente), o **protocolo UDP** foi escolhido para realizar a comunicação entre os roteadores.
 
+## Construção da topologia
+A topologia se baseia em um grafo gerado aleatoriamente pelo arquivo [grafo.py](grafo.py). Por padrão, a quantidade de roteadores está definida em 5, mas pode ser alterada no arquivo.
+
+Uma [imagem do grafo](grafo.png) será salva, contendo apenas os roteadores, para facilitar a visualização. Também será gerado um [arquivo csv](grafo.csv) em que cada linha representa a conexão entre dois roteadores, juntamente ao custo associado. 
+
+Baseado no grafo gerado, o [compose.py](compose.py) será responsável por gerar o arquivo **docker-compose.yml**. Nele estarão as informações necessárias para estabelecer a estrutura do projeto, como as conexões e containers.
+Para cada roteador presente no grafo, serão incluídos 2 hosts associados a àquele roteador, formando uma sub-rede.
+
 ## Execução do projeto
 Para executar o projeto com uma topologia gerada aleatóriamente, é necessário seguir as seguintes instruções:
 
@@ -35,12 +43,9 @@ Após a criação do ambiente, é necessário ativá-lo com
 Após ativar o ambiente, é preciso instalar as dependências requeridas com
 ```pip install -r requirements.txt```
 
-A topologia se baseia em um grafo gerado aleatoriamente pelo arquivo [grafo.py](grafo.py). Por padrão, a quantidade de roteadores está definida em 5, mas pode ser alterada no arquivo.
 Para gerar o grafo basta executar o arquivo ```grafo.py```.
 
-Será salvo uma [imagem do grafo](grafo.png) contendo apenas os roteadores, para facilitar a visualização, bem como um [arquivo csv](grafo.csv) contendo as informações das conexões e pesos.
 
-Baseado no grafo gerado, o [compose.py](compose.py) será responsável por gerar o arquivo **docker-compose.yml**, que conterá as informações necessárias para estabelecer a estrutura do projeto, como as conexões e containers. 
 Para isso, basta executar o arquivo ```compose.py```.
 
 Com o docker-compose gerado, é preciso construir as imagens dos containers e executá-las.
