@@ -82,6 +82,8 @@ sudo docker compose up --build
 sudo docker compose down
 ```
 
+---
+
 ## 🧪 Testes de conectividade
 ### 🔄 Testes entre roteadores e os outros componentes (roteadores + hosts)
 
@@ -94,6 +96,7 @@ sudo docker compose down
 ```bash
 ./ping2.sh
 ```
+---
 
 ## ✅ Conclusão
 
