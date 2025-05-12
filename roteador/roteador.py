@@ -90,7 +90,7 @@ class LSDB:
                 # Atualiza a quantidade de roteadores conhecidos
                 self._quantidade_roteadores = quantidade_roteadores
                 tempo_convergencia = time.time() - self._tempo_inicio
-                data_formatada = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
+                data_formatada = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
                 try:
                     with open("/compartilhado/convergencia.txt", "a") as file:

@@ -8,6 +8,10 @@ declare -A roteadores_map
 # Cria uma lista ordenada de roteadores
 roteadores=()
 
+# Contadores de sucesso e falha
+success=0
+fail=0
+
 # Leitura do docker-compose
 while read -r line; do
   if [[ $line == *"container_name:"* ]]; then
@@ -42,7 +46,27 @@ for origem in "${roteadores[@]}"; do
       continue
     fi
     printf "Pingando %-15s (%-8s)... " "$destino_ip" "$destino_nome"
-    docker exec "$origem" ping -c 1 -W 1 "$destino_ip" &> /dev/null && echo "✔️" || echo "❌"
+    if docker exec "$origem" ping -c 1 -W 1 "$destino_ip" &> /dev/null; then
+      echo "✔️"
+      ((success++))
+    else
+      echo "❌"
+      ((fail++))
+    fi
   done
   echo "------------------------------"
 done
+
+# Calculo das estatísticas
+total=$((success + fail))
+echo -e "\nResumo:"
+echo "Total de testes: $total"
+echo "Sucesso: $success"
+echo "Falha: $fail"
+
+if ((total > 0)); then
+  perda=$((100 * fail / total))
+  echo "Perda: $perda%"
+else
+  echo "Perda: N/A"
+fi
