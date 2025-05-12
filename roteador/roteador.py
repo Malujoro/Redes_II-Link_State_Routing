@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import ipaddress
+import datetime
 
 class LSDB:
     """
@@ -13,7 +14,7 @@ class LSDB:
     """
 
     __slots__ = [
-        "_tabela", "_router_id", "_roteamento", "_neighbors_ip"
+        "_tabela", "_router_id", "_roteamento", "_neighbors_ip", "_tempo_inicio", "_quantidade_roteadores"
     ]
 
     def __init__(self, router_id: str, neighbors_ip: dict[str, str]):
@@ -31,6 +32,8 @@ class LSDB:
         self._tabela = {}
         # Dicionário que mantém registro dos roteadores de destino e os próximos saltos para alcançá-los
         self._roteamento = {}
+        self._tempo_inicio = time.time()
+        self._quantidade_roteadores = 0
 
     def criar_entrada(self, sequence_number: int, timestamp: float, addresses: list[str], links: dict[str, int]) -> dict:
         """
@@ -75,8 +78,27 @@ class LSDB:
             return False
 
         # Cria uma entrada na tabela
-        self._tabela[pacote["router_id"]] = self.criar_entrada(
+        self._tabela[router_id] = self.criar_entrada(
             sequence_number, pacote["timestamp"], pacote["addresses"], pacote["links"])
+
+        # Verificação se a rede convergiu (são conhecidas rotas para todos os roteadores conhecidos)
+        quantidade_roteadores = len(self._tabela.keys())
+        # Verifica se algum roteador novo foi conhecido
+        if (quantidade_roteadores > self._quantidade_roteadores):
+            # Verifica se há caminhos conhecidos para todos os roteadores
+            if (quantidade_roteadores == (len(self._roteamento) + 1)):
+                # Atualiza a quantidade de roteadores conhecidos
+                self._quantidade_roteadores = quantidade_roteadores
+                tempo_convergencia = time.time() - self._tempo_inicio
+                data_formatada = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
+
+                try:
+                    with open("/compartilhado/convergencia.txt", "a") as file:
+                        file.write(
+                            f"[{data_formatada}] {self._router_id}: {tempo_convergencia:.2f} segundos [{quantidade_roteadores} roteadores]\n")
+                except Exception as e:
+                    print2(
+                        f"[ERRO] Falha ao escrever tempo de convergência: {e}")
 
         # Verifica se há um roteador "desconhecido" presente nos vizinhos de algum roteador conhecido, criando uma entrada para o mesmo
         for vizinho in pacote["links"].keys():
@@ -519,7 +541,7 @@ class Roteador:
 
 class GerenciadorVizinhos:
     """
-    Classe responsável por processar pacotes HELLO e LSA além de gerenciar os vizinhos do roteador
+    Classe responsável por processar pacotes HELLO e LSA, além de gerenciar os vizinhos do roteador
     """
 
     __slots__ = [

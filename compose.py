@@ -55,7 +55,8 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
                 'CONTAINER_NAME': r,
             },
             'volumes': [
-                './roteador/roteador.py:/app/roteador.py'
+                './roteador/roteador.py:/app/roteador.py',
+                './logs:/compartilhado',
             ],
             'networks': {}
         }

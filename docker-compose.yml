@@ -9,6 +9,7 @@ services:
       CUSTO_r1_r5_net: '2'
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
+    - ./logs:/compartilhado
     networks:
       r1_r2_net:
         ipv4_address: 10.10.1.2
@@ -43,6 +44,7 @@ services:
       CUSTO_r2_r3_net: '10'
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
+    - ./logs:/compartilhado
     networks:
       r1_r2_net:
         ipv4_address: 10.10.1.3
@@ -78,6 +80,7 @@ services:
       CUSTO_r3_r5_net: '10'
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
+    - ./logs:/compartilhado
     networks:
       r2_r3_net:
         ipv4_address: 10.10.3.3
@@ -113,6 +116,7 @@ services:
       CUSTO_r3_r4_net: '6'
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
+    - ./logs:/compartilhado
     networks:
       r3_r4_net:
         ipv4_address: 10.10.4.3
@@ -145,6 +149,7 @@ services:
       CUSTO_r3_r5_net: '10'
     volumes:
     - ./roteador/roteador.py:/app/roteador.py
+    - ./logs:/compartilhado
     networks:
       r1_r5_net:
         ipv4_address: 10.10.2.3
