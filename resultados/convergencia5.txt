@@ -12,3 +12,15 @@
 [2025-05-12 22:25] r1: 39.83 segundos [5 roteadores]
 [2025-05-12 22:25] r3: 39.99 segundos [5 roteadores]
 [2025-05-12 22:25] r4: 40.24 segundos [5 roteadores]
+
+Resumo (Roteadores):
+Total de testes: 110
+Sucesso: 110
+Falha: 0
+Perda: 0%
+
+Resumo (Hosts):
+Total de testes: 90
+Sucesso: 90
+Falha: 0
+Perda: 0%

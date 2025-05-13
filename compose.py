@@ -109,4 +109,4 @@ def gerar_docker_compose(caminho_csv, caminho_saida="docker-compose.yml"):
 
 
 if (__name__ == '__main__'):
-    gerar_docker_compose("grafo.csv")
+    gerar_docker_compose("grafos/grafo5.csv")

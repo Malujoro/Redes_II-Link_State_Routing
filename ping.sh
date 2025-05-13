@@ -59,7 +59,7 @@ done
 
 # Calculo das estatísticas
 total=$((success + fail))
-echo -e "\nResumo:"
+echo -e "\nResumo (Roteadores):"
 echo "Total de testes: $total"
 echo "Sucesso: $success"
 echo "Falha: $fail"

@@ -1,0 +1,45 @@
+[2025-05-13 13:33] r4: 0.00 segundos [1 roteadores]
+[2025-05-13 13:33] r10: 0.00 segundos [1 roteadores]
+[2025-05-13 13:33] r2: 9.41 segundos [1 roteadores]
+[2025-05-13 13:33] r10: 10.00 segundos [2 roteadores]
+[2025-05-13 13:33] r6: 9.55 segundos [1 roteadores]
+[2025-05-13 13:33] r5: 9.44 segundos [1 roteadores]
+[2025-05-13 13:33] r8: 9.43 segundos [1 roteadores]
+[2025-05-13 13:33] r4: 10.03 segundos [7 roteadores]
+[2025-05-13 13:33] r7: 10.20 segundos [1 roteadores]
+[2025-05-13 13:33] r9: 9.89 segundos [1 roteadores]
+[2025-05-13 13:33] r3: 10.00 segundos [1 roteadores]
+[2025-05-13 13:33] r1: 10.48 segundos [1 roteadores]
+[2025-05-13 13:33] r3: 10.11 segundos [2 roteadores]
+[2025-05-13 13:33] r9: 10.04 segundos [5 roteadores]
+[2025-05-13 13:33] r4: 30.00 segundos [10 roteadores]
+[2025-05-13 13:33] r10: 30.07 segundos [10 roteadores]
+[2025-05-13 13:33] r6: 29.61 segundos [8 roteadores]
+[2025-05-13 13:33] r5: 29.51 segundos [7 roteadores]
+[2025-05-13 13:33] r8: 29.49 segundos [6 roteadores]
+[2025-05-13 13:33] r2: 39.98 segundos [9 roteadores]
+[2025-05-13 13:33] r5: 40.01 segundos [9 roteadores]
+[2025-05-13 13:33] r6: 40.12 segundos [10 roteadores]
+[2025-05-13 13:33] r8: 40.00 segundos [9 roteadores]
+[2025-05-13 13:33] r9: 40.00 segundos [9 roteadores]
+[2025-05-13 13:33] r1: 40.50 segundos [9 roteadores]
+[2025-05-13 13:33] r3: 40.11 segundos [9 roteadores]
+[2025-05-13 13:33] r7: 40.33 segundos [10 roteadores]
+[2025-05-13 13:33] r9: 40.46 segundos [10 roteadores]
+[2025-05-13 13:33] r5: 40.51 segundos [10 roteadores]
+[2025-05-13 13:33] r1: 41.05 segundos [10 roteadores]
+[2025-05-13 13:33] r3: 40.68 segundos [10 roteadores]
+[2025-05-13 13:33] r8: 40.70 segundos [10 roteadores]
+[2025-05-13 13:33] r2: 40.74 segundos [10 roteadores]
+
+Resumo (Roteadores):
+Total de testes: 524
+Sucesso: 524
+Falha: 0
+Perda: 0%
+
+Resumo (Hosts):
+Total de testes: 380
+Sucesso: 380
+Falha: 0
+Perda: 0%

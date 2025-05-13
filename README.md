@@ -34,8 +34,8 @@ O sistema é construído com os seguintes módulos e conceitos:
 A topologia é baseada em um grafo gerado aleatoriamente pelo script [`grafo.py`](grafo.py).
 
 - 🔢 A quantidade de roteadores padrão é 5 (editável no código)
-- 🧾 Um arquivo [`grafo.csv`](grafo.csv) é gerado com as conexões e seus respectivos pesos
-- 🖼️ Também é gerada uma imagem [`grafo.png`](grafo.png) com a visualização do grafo (roteadores e suas conexões)
+- 🧾 Um arquivo [`grafo.csv`](grafos/grafo.csv) é gerado com as conexões e seus respectivos pesos
+- 🖼️ Também é gerada uma imagem [`grafo.png`](grafos/grafo.png) com a visualização do grafo (roteadores e suas conexões)
 
 Em seguida:
 
