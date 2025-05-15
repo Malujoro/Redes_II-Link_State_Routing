@@ -100,19 +100,8 @@ class LSDB:
                     print2(
                         f"[ERRO] Falha ao escrever tempo de convergência: {e}")
 
-        # Verifica se há um roteador "desconhecido" presente nos vizinhos de algum roteador conhecido, criando uma entrada para o mesmo
-        for vizinho in pacote["links"].keys():
-            if (vizinho not in self._tabela):
-                print2(
-                    f"[LSDB] Descoberto novo roteador: {vizinho}")
-                self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
+        self.recalcular_rotas(pacote["links"].keys())
 
-        # Calcula o menor caminho para se chegar em cada um dos outros roteadores
-        caminhos = self.dijkstra()
-        # Percorre os menores caminhos encontrados para estabelecer quem será o próximo pulo
-        self.atualizar_proximo_pulo(caminhos)
-        # Atualiza as rotas na tabela de roteamento
-        self.atualizar_rotas()
         return True
 
     def dijkstra(self) -> dict:
@@ -199,6 +188,28 @@ class LSDB:
                         except subprocess.CalledProcessError as e:
                             print2(
                                 f"[ERRO] Falha ao adicionar rota: [{comando}] -> [{e}] ({self._router_id} -> {roteador_gateway})")
+
+    def recalcular_rotas(self, roteadores_observados: list[str]):
+        """
+        Recalcula as rotas com dijkstra e aplica na tabela de roteamento
+
+        Args:
+            roteadores_observados (list[str]): Lista de roteadores observados
+        """
+
+        # Verifica se há um roteador "desconhecido" presente nos roteadores observados, criando uma entrada para o mesmo
+        for vizinho in roteadores_observados:
+            if (vizinho not in self._tabela):
+                print2(
+                    f"[LSDB] Descoberto novo roteador: {vizinho}")
+                self._tabela[vizinho] = self.criar_entrada(-1, 0, [], {})
+
+        # Calcula o menor caminho para se chegar em cada um dos outros roteadores
+        caminhos = self.dijkstra()
+        # Percorre os menores caminhos encontrados para estabelecer quem será o próximo pulo
+        self.atualizar_proximo_pulo(caminhos)
+        # Atualiza as rotas na tabela de roteamento
+        self.atualizar_rotas()
 
 class HelloSender:
     """
@@ -535,6 +546,10 @@ class Roteador:
         # Inicia o envio de pacotes HELLO
         self._hello.iniciar()
 
+        thread_quedas = threading.Thread(
+            target=self._gerenciador_vizinhos.verificar_quedas, daemon=True)
+        thread_quedas.start()
+
         # Loop para manter o processo vivo
         while True:
             time.sleep(1)
@@ -545,7 +560,7 @@ class GerenciadorVizinhos:
     """
 
     __slots__ = [
-        "_router_id", "_lsa", "_lsdb", "_neighbors_detected", "_neighbors_recognized"
+        "_router_id", "_lsa", "_lsdb", "_neighbors_detected", "_neighbors_recognized", "_neighbors_hello"
     ]
 
     def __init__(self, router_id: str, lsa: LSASender, lsdb: LSDB):
@@ -562,6 +577,7 @@ class GerenciadorVizinhos:
         self._lsdb = lsdb
         self._neighbors_detected = lsa.neighbors_cost
         self._neighbors_recognized = lsa.neighbors_ip
+        self._neighbors_hello = {}
 
     def processar_hello(self, pacote: dict, sender_ip: str):
         """
@@ -578,6 +594,8 @@ class GerenciadorVizinhos:
             self._router_id, sender_id)
         # Retorna os vizinhos conhecidos do roteador emissor
         neighbors = pacote.get("known_neighbors")
+
+        self._neighbors_hello[sender_id] = pacote.get("timestamp")
 
         # Caso o emissor tenha reconhecido o roteador atual e ainda não tenha sido registrado como vizinhos conhecidos
         if ((self._router_id in neighbors) and (sender_id not in self._neighbors_recognized)):
@@ -614,6 +632,37 @@ class GerenciadorVizinhos:
         if (custo == None):
             custo = os.getenv(f"CUSTO_{neighbor_id}_{router_id}_net")
         return int(custo)
+
+    def verificar_quedas(self, intervalo_hello: int = 10, tolerancia: int = 3):
+        """
+        Verifica periodicamente se algum vizinho deixou de enviar pacotes HELLO, detectando uma possível queda de roteador
+
+        Args:
+            intervalo_hello (int, opcional): Intervalo (em segundos) esperado entre pacotes HELLO (Padrão: 10)
+            tolerancia (int, opcional): Quantidade de intervalos sem HELLO antes de declarar o roteador como inativo (Padrão: 3)
+        """
+        while True:
+            agora = time.time()
+            roteadores_caidos = [
+                router_id for router_id, tempo in self._neighbors_hello.items() if (agora - tempo) > (intervalo_hello * tolerancia)
+            ]
+
+            for router_id in roteadores_caidos:
+                print2(f"[QUEDA] Roteador {router_id} considerado inativo")
+
+                if (router_id in self._neighbors_detected):
+                    del self._neighbors_detected[router_id]
+
+                if (router_id in self._neighbors_recognized):
+                    del self._neighbors_recognized[router_id]
+
+                if (router_id in self._lsdb._tabela):
+                    del self._lsdb._tabela[router_id]
+
+            self._lsdb.recalcular_rotas(roteadores_caidos)
+
+            time.sleep(1)
+
 
 def create_socket():
     """
