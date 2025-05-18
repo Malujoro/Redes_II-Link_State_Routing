@@ -46,6 +46,7 @@ Em seguida:
 ---
 
 ## ▶️ Execução do projeto
+Os comandos a seguir foram testados em um ambiente Linux (Ubuntu), com Python 3 e Docker previamente instalados.
 
 ### 🔧 1. Preparação do ambiente virtual
 
